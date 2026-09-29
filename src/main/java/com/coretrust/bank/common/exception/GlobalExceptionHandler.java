@@ -20,6 +20,10 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
+import org.springframework.security.core.AuthenticationException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -77,6 +81,23 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ProblemDetail> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
         return respond(ErrorCode.ACCESS_DENIED, "You do not have permission to perform this action.", req.getRequestURI());
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ProblemDetail> handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
+        return respond(ErrorCode.INVALID_CREDENTIALS, "Invalid email or password.", req.getRequestURI());
+    }
+
+    @ExceptionHandler({DisabledException.class, LockedException.class})
+    public ResponseEntity<ProblemDetail> handleDisabled(AuthenticationException ex, HttpServletRequest req) {
+        return respond(ErrorCode.ACCOUNT_DISABLED,
+                "Your account is inactive or locked. Please contact support.", req.getRequestURI());
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ProblemDetail> handleAuthentication(AuthenticationException ex, HttpServletRequest req) {
+        return respond(ErrorCode.UNAUTHORIZED,
+                "Authentication is required to access this resource.", req.getRequestURI());
     }
 
     // ---------- Catch-all ----------
