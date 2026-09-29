@@ -1,7 +1,18 @@
 package com.coretrust.bank.config;
 
+import com.coretrust.bank.security.CustomUserDetailsService;
+import com.coretrust.bank.security.JwtAuthenticationFilter;
+import com.coretrust.bank.security.JwtService;
+import com.coretrust.bank.security.RestAccessDeniedHandler;
+import com.coretrust.bank.security.RestAuthenticationEntryPoint;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -9,36 +20,72 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
-/**
- * PHASE 1 ONLY: everything is open so we can build and test the foundation.
- * Phase 2 replaces this with JWT authentication and role-based rules.
- */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
+
+    private static final String[] PUBLIC_AUTH_ENDPOINTS = {
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/logout"
+    };
+
+    private final JwtService jwtService;
+    private final CustomUserDetailsService userDetailsService;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
+    private final HandlerExceptionResolver exceptionResolver;
+
+    public SecurityConfig(JwtService jwtService,
+                          CustomUserDetailsService userDetailsService,
+                          RestAuthenticationEntryPoint authenticationEntryPoint,
+                          RestAccessDeniedHandler accessDeniedHandler,
+                          @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver) {
+        this.jwtService = jwtService;
+        this.userDetailsService = userDetailsService;
+        this.authenticationEntryPoint = authenticationEntryPoint;
+        this.accessDeniedHandler = accessDeniedHandler;
+        this.exceptionResolver = exceptionResolver;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        //csrf(disable): CSRF attacks target browser sessions that use cookies.
-        //Our API will use JWT in headers, not cookies, so CSRF protection isn't needed.
+        // Created here, not as a @Component: Spring Boot auto-registers Filter beans
+        // with the servlet container, which would run it twice.
+        JwtAuthenticationFilter jwtFilter =
+                new JwtAuthenticationFilter(jwtService, userDetailsService, exceptionResolver);
 
-        //SessionCreationPolicy.STATELESS: the server never creates an HTTP session.
-        // Every request must prove who it is, which is how JWT works.
-
-        //anyRequest().permitAll(): all requests are allowed.
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+                .csrf(AbstractHttpConfigurer::disable)
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_ENDPOINTS).permitAll()
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .anyRequest().authenticated())
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 
-    //hashes passwords before saving
-    //identical passwords produce different hashes and brute-forcing is expensive.
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
-
 }
