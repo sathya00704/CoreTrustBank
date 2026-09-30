@@ -1,5 +1,6 @@
 package com.coretrust.bank.user.controller;
 
+import com.coretrust.bank.common.dto.MessageResponse;
 import com.coretrust.bank.security.SecurityUser;
 import com.coretrust.bank.user.dto.UpdateProfileRequest;
 import com.coretrust.bank.user.dto.UserResponse;
@@ -32,9 +33,9 @@ public class UserController {
     }
 
     @PatchMapping("/me/password")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void changeMyPassword(@AuthenticationPrincipal SecurityUser principal,
-                                 @Valid @RequestBody ChangePasswordRequest request) {
+    public MessageResponse changeMyPassword(@AuthenticationPrincipal SecurityUser principal,
+                                            @Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(principal.id(), request);
+        return MessageResponse.of("Password changed successfully. Please log in again with your new password.");
     }
 }
