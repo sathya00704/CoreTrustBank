@@ -21,6 +21,8 @@ public class JwtService {
     private final JwtProperties properties;
     private final SecretKey signingKey;
 
+    private static final String SESSION_CLAIM = "sid";
+
     //Constructor: builds the signing key from the secret, and fails at startup if the secret is too weak.
     public JwtService(JwtProperties properties) {
         this.properties = properties;
@@ -29,23 +31,26 @@ public class JwtService {
     }
 
     //creates and signs a JWT containing the user id, role, issuer, issue time, expiry, and a unique id.
-    public String generateAccessToken(Long userId, Role role, Instant expiresAt) {
+    public String generateAccessToken(Long userId, Role role, String sessionId, Instant expiresAt) {
         return Jwts.builder()
                 .id(UUID.randomUUID().toString())
                 .subject(userId.toString())
                 .issuer(properties.issuer())
                 .claim(ROLE_CLAIM, role.name())
+                .claim(SESSION_CLAIM, sessionId)
                 .issuedAt(new Date())
                 .expiration(Date.from(expiresAt))
                 .signWith(signingKey)
                 .compact();
     }
 
+    public record AccessTokenClaims(Long userId, String sessionId) {
+    }
+
     /** Verifies signature, expiry and issuer; throws JwtException if any check fails. */
-    //Verifies the signature, expiry, and issuer, then returns the user id.
-    //It throws if the token is tampered with or expired.
-    public Long extractUserId(String token) {
-        return Long.valueOf(parse(token).getSubject());
+    public AccessTokenClaims parseAccessToken(String token) {
+        Claims claims = parse(token);
+        return new AccessTokenClaims(Long.valueOf(claims.getSubject()), claims.get(SESSION_CLAIM, String.class));
     }
 
     private Claims parse(String token) {

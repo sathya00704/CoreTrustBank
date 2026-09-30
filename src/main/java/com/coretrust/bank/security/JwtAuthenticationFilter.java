@@ -18,6 +18,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -50,17 +51,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);   // no token: continue as anonymous; security rules decide
             return;
         }
-        //validates the token, loads the user,
-        //checks they're still active, and stores them in the SecurityContext
         try {
-            Long userId = jwtService.extractUserId(header.substring(BEARER_PREFIX.length()));
+            JwtService.AccessTokenClaims claims =
+                    jwtService.parseAccessToken(header.substring(BEARER_PREFIX.length()));
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // One PK lookup per request: a user locked by an admin is blocked immediately,
-                // not only after their token expires.
-                SecurityUser user = userDetailsService.loadUserById(userId);
+                SecurityUser user = userDetailsService.loadUserById(claims.userId());
                 if (!user.isEnabled() || !user.isAccountNonLocked()) {
                     throw new DisabledException("Account is inactive or locked");
+                }
+                // Token belongs to a session that was logged out or replaced by a newer login
+                if (!Objects.equals(claims.sessionId(), user.activeSessionId())) {
+                    throw new BusinessException(ErrorCode.SESSION_REVOKED,
+                            "This session is no longer active (logged out or signed in elsewhere).");
                 }
 
                 var authentication = UsernamePasswordAuthenticationToken.authenticated(
@@ -74,7 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (JwtException | IllegalArgumentException ex) {
             reject(request, response, new BusinessException(ErrorCode.INVALID_TOKEN, "Access token is invalid."));
             return;
-        } catch (AuthenticationException ex) {
+        } catch (AuthenticationException | BusinessException ex) {
             reject(request, response, ex);
             return;
         }

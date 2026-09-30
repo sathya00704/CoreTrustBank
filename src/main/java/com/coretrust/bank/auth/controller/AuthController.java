@@ -5,6 +5,7 @@ import com.coretrust.bank.auth.dto.LoginRequest;
 import com.coretrust.bank.auth.dto.RefreshTokenRequest;
 import com.coretrust.bank.auth.dto.RegisterRequest;
 import com.coretrust.bank.auth.service.AuthService;
+import com.coretrust.bank.common.dto.MessageResponse;
 import com.coretrust.bank.user.dto.UserResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -39,8 +40,8 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@Valid @RequestBody RefreshTokenRequest request) {
+    public MessageResponse logout(@Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request);
+        return MessageResponse.of("You have been logged out successfully.");
     }
 }

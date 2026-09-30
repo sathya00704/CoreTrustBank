@@ -36,6 +36,10 @@ public class RefreshToken extends BaseEntity {
     @Column(name = "session_expires_at", nullable = false)
     private Instant sessionExpiresAt;
 
+    /** Same for every token in one login session; must match users.active_session_id */
+    @Column(name = "session_id", nullable = false, length = 36)
+    private String sessionId;
+
     /** True once the session has used its one extension */
     @Column(nullable = false)
     private boolean extended = false;

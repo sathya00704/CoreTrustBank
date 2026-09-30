@@ -14,17 +14,23 @@ import java.util.List;
  * The logged-in user as Spring Security sees it.
  * A small immutable copy of the User entity, never the entity itself.
  */
-public record SecurityUser(Long id, String email, String passwordHash, Role role, UserStatus status)
+public record SecurityUser(Long id, String email, String passwordHash, Role role, UserStatus status,
+                           String activeSessionId)
         implements UserDetails {
 
     public static SecurityUser from(User user) {
         return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash(),
-                user.getRole(), user.getStatus());
+                user.getRole(), user.getStatus(), user.getActiveSessionId());
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+    }
+
+    /** ADMIN and SUPPORT can see all customers' data; CUSTOMERs only their own. */
+    public boolean isStaff() {
+        return role == Role.ADMIN || role == Role.SUPPORT;
     }
 
     @Override

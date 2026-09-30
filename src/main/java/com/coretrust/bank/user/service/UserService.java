@@ -9,6 +9,9 @@ import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.repository.UserRepository;
 import com.coretrust.bank.auth.repository.RefreshTokenRepository;
 import com.coretrust.bank.user.dto.ChangePasswordRequest;
+import com.coretrust.bank.audit.entity.AuditAction;
+import com.coretrust.bank.audit.entity.AuditEntityType;
+import com.coretrust.bank.audit.service.AuditService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,8 @@ public class UserService {
 
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
+
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public UserResponse getProfile(Long userId) {
@@ -41,6 +46,9 @@ public class UserService {
             }
             user.setPhone(request.phone());
         }
+
+        auditService.record(AuditAction.PROFILE_UPDATED, AuditEntityType.USER, userId, "Profile updated");
+
         // No save() call needed: dirty checking writes the changes when the transaction commits
         return UserResponse.from(user);
     }
@@ -61,6 +69,11 @@ public class UserService {
 
         // Log out every device, including a possibly stolen session
         refreshTokenRepository.revokeAllActiveByUserId(userId);
+
+        user.endSession();   // log out everywhere, including this tab
+
+        auditService.record(AuditAction.PASSWORD_CHANGED, AuditEntityType.USER, userId,
+                "Password changed; all sessions revoked");
     }
 
     private User findUser(Long userId) {
