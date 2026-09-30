@@ -50,6 +50,10 @@ public class AuditLog {
     @Column(name = "ip_address", length = 45)   // 45 fits IPv6
     private String ipAddress;
 
+    /** Stored as text so the record stays readable even if the user's email changes later */
+    @Column(name = "actor_email", length = 150)
+    private String actorEmail;
+
     @PrePersist
     void onCreate() {
         if (timestamp == null) {

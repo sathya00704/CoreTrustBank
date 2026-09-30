@@ -12,4 +12,5 @@ public enum AuditAction {
     ACCOUNT_CREATED,
     ACCOUNT_FROZEN,
     ACCOUNT_UNFROZEN,
+    SESSION_TERMINATED
 }

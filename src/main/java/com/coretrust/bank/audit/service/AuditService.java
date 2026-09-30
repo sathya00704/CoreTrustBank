@@ -23,28 +23,37 @@ public class AuditService {
     private final AuditLogRepository auditLogRepository;
 
     /** Actor = the logged-in user. Joins the caller's transaction. */
+    //Used for normal actions by a logged-in user: creating an account, freezing, changing a password.
+    //The caller doesn't need to pass the user.
     @Transactional
     public void record(AuditAction action, AuditEntityType entityType, Object entityId, String description) {
-        auditLogRepository.save(build(currentUserId(), action, entityType, entityId, description));
+        SecurityUser actor = currentUser();
+        Long userId = actor == null ? null : actor.id();
+        String email = actor == null ? null : actor.email();
+        auditLogRepository.save(build(userId, email, action, entityType, entityId, description));
     }
 
-    /** Explicit actor: for events where the user isn't in the SecurityContext yet (register, login). */
+    /** Explicit actor: for events where the user isn't in the SecurityContext (register, login, refresh). */
+    //The caller says who the actor is.
+    //Needed for register, login, refresh, and logout, because nobody is in the SecurityContext at that point.
     @Transactional
-    public void record(Long userId, AuditAction action, AuditEntityType entityType, Object entityId, String description) {
-        auditLogRepository.save(build(userId, action, entityType, entityId, description));
+    public void record(Long userId, String actorEmail, AuditAction action, AuditEntityType entityType,
+                       Object entityId, String description) {
+        auditLogRepository.save(build(userId, actorEmail, action, entityType, entityId, description));
     }
 
     /** Own transaction: the entry is kept even if the caller's transaction rolls back. Used for failures. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordIndependently(Long userId, AuditAction action, AuditEntityType entityType,
-                                    Object entityId, String description) {
-        auditLogRepository.save(build(userId, action, entityType, entityId, description));
+    public void recordIndependently(Long userId, String actorEmail, AuditAction action,
+                                    AuditEntityType entityType, Object entityId, String description) {
+        auditLogRepository.save(build(userId, actorEmail, action, entityType, entityId, description));
     }
 
-    private AuditLog build(Long userId, AuditAction action, AuditEntityType entityType,
+    private AuditLog build(Long userId, String actorEmail, AuditAction action, AuditEntityType entityType,
                            Object entityId, String description) {
         AuditLog entry = new AuditLog();
         entry.setUserId(userId);
+        entry.setActorEmail(actorEmail);
         entry.setAction(action.name());
         entry.setEntityType(entityType.name());
         entry.setEntityId(entityId == null ? null : String.valueOf(entityId));
@@ -53,17 +62,19 @@ public class AuditService {
         return entry;
     }
 
-    private static Long currentUserId() {
+    private static SecurityUser currentUser() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        return (auth != null && auth.getPrincipal() instanceof SecurityUser user) ? user.id() : null;
+        return (auth != null && auth.getPrincipal() instanceof SecurityUser user) ? user : null;
     }
 
+    //0:0:0:0:0:0:0:1 for local
     private static String currentIpAddress() {
         return (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs)
                 ? attrs.getRequest().getRemoteAddr()
-                : null;   // e.g. scheduled jobs: no HTTP request
+                : null;
     }
 
+    //Reduces length if more than the max description length
     private static String truncate(String value) {
         return (value == null || value.length() <= MAX_DESCRIPTION_LENGTH)
                 ? value : value.substring(0, MAX_DESCRIPTION_LENGTH);
