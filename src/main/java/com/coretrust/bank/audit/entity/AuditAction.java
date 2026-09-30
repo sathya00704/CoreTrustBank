@@ -1,0 +1,15 @@
+package com.coretrust.bank.audit.entity;
+
+public enum AuditAction {
+    USER_REGISTERED,
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    SESSION_EXTENDED,
+    REFRESH_TOKEN_REUSE_DETECTED,
+    LOGOUT,
+    PROFILE_UPDATED,
+    PASSWORD_CHANGED,
+    ACCOUNT_CREATED,
+    ACCOUNT_FROZEN,
+    ACCOUNT_UNFROZEN,
+}
