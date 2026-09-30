@@ -10,7 +10,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Authentication", description = "Register, login, session extension and logout")
+@SecurityRequirements   // empty = these endpoints need no token; removes the lock icon
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor

@@ -10,7 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.http.HttpStatus;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
+@Tag(name = "Users", description = "Profile of the logged-in user")
 @RestController
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
