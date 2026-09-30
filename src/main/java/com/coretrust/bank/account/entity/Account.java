@@ -2,6 +2,8 @@ package com.coretrust.bank.account.entity;
 
 import com.coretrust.bank.common.entity.BaseEntity;
 import com.coretrust.bank.user.entity.User;
+import com.coretrust.bank.common.exception.BusinessException;
+import com.coretrust.bank.common.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -40,9 +42,26 @@ public class Account extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Setter(AccessLevel.NONE)   // change only via freeze() / unfreeze()
     private AccountStatus status = AccountStatus.ACTIVE;
 
     @Version
     @Setter(AccessLevel.NONE)   // only Hibernate should touch this
     private Long version;
+
+    public void freeze() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Only ACTIVE accounts can be frozen. Current status: " + status);
+        }
+        status = AccountStatus.FROZEN;
+    }
+
+    public void unfreeze() {
+        if (status != AccountStatus.FROZEN) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Only FROZEN accounts can be unfrozen. Current status: " + status);
+        }
+        status = AccountStatus.ACTIVE;
+    }
 }
