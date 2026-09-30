@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
@@ -24,6 +25,8 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.beans.TypeMismatchException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -62,6 +65,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         log.warn("Data integrity violation on {}: {}", req.getRequestURI(), ex.getMostSpecificCause().getMessage());
         return respond(ErrorCode.DUPLICATE_RESOURCE,
                 "The request conflicts with existing data.", req.getRequestURI());
+    }
+
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ProblemDetail> handleInvalidSort(PropertyReferenceException ex, HttpServletRequest req) {
+        return respond(ErrorCode.VALIDATION_FAILED,
+                "Invalid sort property: '%s'.".formatted(ex.getPropertyName()), req.getRequestURI());
     }
 
     // ---------- Validation outside controllers (@Validated services) ----------
@@ -156,6 +165,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         ProblemDetail pd = problem(ErrorCode.RESOURCE_NOT_FOUND,
                 "No endpoint found for this path.", path(request));
+        return ResponseEntity.status(pd.getStatus()).body(pd);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+        String name = (ex instanceof MethodArgumentTypeMismatchException m) ? m.getName() : ex.getPropertyName();
+        ProblemDetail pd = problem(ErrorCode.VALIDATION_FAILED,
+                "Invalid value for parameter '%s'.".formatted(name), path(request));
         return ResponseEntity.status(pd.getStatus()).body(pd);
     }
 

@@ -20,7 +20,11 @@ public enum ErrorCode {
     INVALID_TOKEN(HttpStatus.UNAUTHORIZED, "Invalid token"),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "Token expired"),
     ACCOUNT_DISABLED(HttpStatus.FORBIDDEN, "Account disabled"),
-    SESSION_EXPIRED(HttpStatus.UNAUTHORIZED, "Session expired");
+    SESSION_EXPIRED(HttpStatus.UNAUTHORIZED, "Session expired"),
+    ACCOUNT_LIMIT_REACHED(HttpStatus.CONFLICT, "Account limit reached"),
+    INVALID_ACCOUNT_STATE(HttpStatus.CONFLICT, "Invalid account state"),
+    SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT, "Session already active"),
+    SESSION_REVOKED(HttpStatus.UNAUTHORIZED, "Session revoked");
 
     private final HttpStatus status;
     private final String title;
