@@ -12,6 +12,7 @@ import com.coretrust.bank.auth.repository.RefreshTokenRepository;
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.exception.ErrorCode;
 import com.coretrust.bank.common.exception.ResourceNotFoundException;
+import com.coretrust.bank.common.util.HashUtils;
 import com.coretrust.bank.config.JwtProperties;
 import com.coretrust.bank.security.JwtService;
 import com.coretrust.bank.security.SecurityUser;
@@ -131,7 +132,7 @@ public class AuthService {
      */
     @Transactional(noRollbackFor = BusinessException.class)
     public AuthResponse refresh(RefreshTokenRequest request) {
-        RefreshToken stored = refreshTokenRepository.findByTokenHash(sha256(request.refreshToken()))
+        RefreshToken stored = refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(request.refreshToken()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN, "Refresh token is invalid."));
 
         User user = stored.getUser();
@@ -174,7 +175,7 @@ public class AuthService {
     /** Idempotent: an unknown or already-revoked token still returns success. */
     @Transactional
     public void logout(RefreshTokenRequest request) {
-        refreshTokenRepository.findByTokenHash(sha256(request.refreshToken()))
+        refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(request.refreshToken()))
                 .filter(token -> !token.isRevoked())
                 .ifPresent(token -> {
                     token.setRevoked(true);
@@ -197,7 +198,7 @@ public class AuthService {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setSessionId(sessionId);
-        refreshToken.setTokenHash(sha256(rawRefreshToken));
+        refreshToken.setTokenHash(HashUtils.sha256Hex(rawRefreshToken));
         refreshToken.setExpiresAt(tokenExpiresAt);
         refreshToken.setSessionExpiresAt(sessionExpiresAt);
         refreshToken.setExtended(extended);
@@ -214,15 +215,6 @@ public class AuthService {
         byte[] bytes = new byte[32];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String sha256(String value) {
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
     }
 
     private static String normalizeEmail(String email) {
