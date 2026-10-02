@@ -1,9 +1,6 @@
 package com.coretrust.bank.auth.controller;
 
-import com.coretrust.bank.auth.dto.AuthResponse;
-import com.coretrust.bank.auth.dto.LoginRequest;
-import com.coretrust.bank.auth.dto.RefreshTokenRequest;
-import com.coretrust.bank.auth.dto.RegisterRequest;
+import com.coretrust.bank.auth.dto.*;
 import com.coretrust.bank.auth.service.AuthService;
 import com.coretrust.bank.common.dto.MessageResponse;
 import com.coretrust.bank.user.dto.UserResponse;
@@ -41,7 +38,9 @@ public class AuthController {
 
     @PostMapping("/logout")
     public MessageResponse logout(@Valid @RequestBody RefreshTokenRequest request) {
-        authService.logout(request);
-        return MessageResponse.of("You have been logged out successfully.");
+        LogoutResult result = authService.logout(request);
+        return MessageResponse.of(result == LogoutResult.LOGGED_OUT
+                ? "You have been logged out successfully."
+                : "You were already logged out.");
     }
 }

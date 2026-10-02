@@ -3,10 +3,7 @@ package com.coretrust.bank.auth.service;
 import com.coretrust.bank.audit.entity.AuditAction;
 import com.coretrust.bank.audit.entity.AuditEntityType;
 import com.coretrust.bank.audit.service.AuditService;
-import com.coretrust.bank.auth.dto.AuthResponse;
-import com.coretrust.bank.auth.dto.LoginRequest;
-import com.coretrust.bank.auth.dto.RefreshTokenRequest;
-import com.coretrust.bank.auth.dto.RegisterRequest;
+import com.coretrust.bank.auth.dto.*;
 import com.coretrust.bank.auth.entity.RefreshToken;
 import com.coretrust.bank.auth.repository.RefreshTokenRepository;
 import com.coretrust.bank.common.exception.BusinessException;
@@ -174,18 +171,28 @@ public class AuthService {
 
     /** Idempotent: an unknown or already-revoked token still returns success. */
     @Transactional
-    public void logout(RefreshTokenRequest request) {
-        refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(request.refreshToken()))
-                .filter(token -> !token.isRevoked())
-                .ifPresent(token -> {
-                    token.setRevoked(true);
-                    User user = token.getUser();
-                    if (token.getSessionId().equals(user.getActiveSessionId())) {
-                        user.endSession();   // access token stops working immediately
-                    }
-                    auditService.record(user.getId(), user.getEmail(), AuditAction.LOGOUT,
-                            AuditEntityType.USER, user.getId(), "Logged out");
-                });
+    public LogoutResult logout(RefreshTokenRequest request) {
+        RefreshToken token = refreshTokenRepository.findByTokenHash(HashUtils.sha256Hex(request.refreshToken()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN, "Refresh token is invalid."));
+
+        User user = token.getUser();
+        boolean belongsToCurrentSession = token.getSessionId().equals(user.getActiveSessionId());
+
+        if (!belongsToCurrentSession) {
+            token.setRevoked(true);    // harmless if already revoked
+            return LogoutResult.ALREADY_LOGGED_OUT;
+        }
+        if (token.isRevoked()) {
+            // Rotated away by an extension, while the session itself is still active
+            throw new BusinessException(ErrorCode.INVALID_TOKEN,
+                    "This refresh token has been replaced. Log out with the latest refresh token.");
+        }
+
+        token.setRevoked(true);
+        user.endSession();
+        auditService.record(user.getId(), user.getEmail(), AuditAction.LOGOUT,
+                AuditEntityType.USER, user.getId(), "Logged out");
+        return LogoutResult.LOGGED_OUT;
     }
 
     // ---------- helpers ----------
