@@ -8,6 +8,8 @@ import com.coretrust.bank.account.entity.AccountStatus;
 import com.coretrust.bank.account.service.AccountService;
 import com.coretrust.bank.common.dto.PageResponse;
 import com.coretrust.bank.security.SecurityUser;
+import com.coretrust.bank.otp.dto.OtpChallengeResponse;
+import com.coretrust.bank.otp.dto.OtpVerificationRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -58,16 +60,24 @@ public class AccountController {
     }
 
     @PostMapping("/{id}/freeze")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'SUPPORT', 'ADMIN')")
     public AccountResponse freeze(@AuthenticationPrincipal SecurityUser principal,
                                   @PathVariable Long id,
                                   @Valid @RequestBody AccountStatusChangeRequest request) {
         return accountService.freeze(principal, id, request.reason());
     }
 
+    @PostMapping("/{id}/unfreeze/otp")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public OtpChallengeResponse requestUnfreezeOtp(@AuthenticationPrincipal SecurityUser principal,
+                                                   @PathVariable Long id) {
+        return accountService.requestSelfUnfreezeOtp(principal, id);
+    }
+
     @PostMapping("/{id}/unfreeze")
-    @PreAuthorize("hasRole('ADMIN')")
-    public AccountResponse unfreeze(@PathVariable Long id, @Valid @RequestBody AccountStatusChangeRequest request) {
-        return accountService.unfreeze(id, request.reason());
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public AccountResponse unfreeze(@AuthenticationPrincipal SecurityUser principal, @PathVariable Long id,
+                                    @Valid @RequestBody OtpVerificationRequest request) {
+        return accountService.selfUnfreeze(principal, id, request);
     }
 }

@@ -6,6 +6,8 @@ import com.coretrust.bank.common.exception.ResourceNotFoundException;
 import com.coretrust.bank.user.dto.UpdateProfileRequest;
 import com.coretrust.bank.user.dto.UserResponse;
 import com.coretrust.bank.user.entity.User;
+import com.coretrust.bank.user.entity.Role;
+import com.coretrust.bank.user.entity.UserStatus;
 import com.coretrust.bank.user.repository.UserRepository;
 import com.coretrust.bank.auth.repository.RefreshTokenRepository;
 import com.coretrust.bank.user.dto.ChangePasswordRequest;
@@ -74,6 +76,21 @@ public class UserService {
 
         auditService.record(AuditAction.PASSWORD_CHANGED, AuditEntityType.USER, userId,
                 "Password changed; all sessions revoked");
+    }
+
+    /**
+     * For staff-assisted operations. Staff emails deliberately return "not found"
+     * so the endpoint can't be used to discover staff accounts.
+     */
+    @Transactional(readOnly = true)
+    public User findActiveCustomerByEmail(String email) {
+        User user = userRepository.findByEmail(email.trim().toLowerCase())
+                .filter(u -> u.getRole() == Role.CUSTOMER)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer", email));
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "Customer account is inactive or locked.");
+        }
+        return user;
     }
 
     private User findUser(Long userId) {

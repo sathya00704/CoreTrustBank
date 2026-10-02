@@ -4,5 +4,7 @@ public enum AuditEntityType {
     USER,
     ACCOUNT,
     BENEFICIARY,
-    TRANSACTION
+    TRANSACTION,
+    OTP,
+    UNFREEZE_REQUEST
 }

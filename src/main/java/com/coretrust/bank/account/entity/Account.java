@@ -1,6 +1,7 @@
 package com.coretrust.bank.account.entity;
 
 import com.coretrust.bank.common.entity.BaseEntity;
+import com.coretrust.bank.user.entity.Role;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.exception.ErrorCode;
@@ -45,16 +46,23 @@ public class Account extends BaseEntity {
     @Setter(AccessLevel.NONE)   // change only via freeze() / unfreeze()
     private AccountStatus status = AccountStatus.ACTIVE;
 
+    /** Who froze the account; decides whether the customer may self-unfreeze. Null when not frozen. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "frozen_by_role", length = 20)
+    @Setter(AccessLevel.NONE)
+    private Role frozenByRole;
+
     @Version
     @Setter(AccessLevel.NONE)   // only Hibernate should touch this
     private Long version;
 
-    public void freeze() {
+    public void freeze(Role frozenBy) {
         if (status != AccountStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
                     "Only ACTIVE accounts can be frozen. Current status: " + status);
         }
         status = AccountStatus.FROZEN;
+        frozenByRole = frozenBy;
     }
 
     public void unfreeze() {
@@ -63,5 +71,6 @@ public class Account extends BaseEntity {
                     "Only FROZEN accounts can be unfrozen. Current status: " + status);
         }
         status = AccountStatus.ACTIVE;
+        frozenByRole = null;
     }
 }

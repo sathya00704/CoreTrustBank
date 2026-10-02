@@ -6,7 +6,6 @@ import com.coretrust.bank.security.JwtService;
 import com.coretrust.bank.security.RestAccessDeniedHandler;
 import com.coretrust.bank.security.RestAuthenticationEntryPoint;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -26,7 +25,6 @@ import org.springframework.web.servlet.HandlerExceptionResolver;
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
     private static final String[] PUBLIC_AUTH_ENDPOINTS = {
@@ -80,7 +78,16 @@ public class SecurityConfig {
                         .requestMatchers(SWAGGER_ENDPOINTS).permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST, "/api/v1/accounts/*/unfreeze").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/accounts/*/unfreeze",
+                                "/api/v1/accounts/*/unfreeze/otp").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/accounts/*/unfreeze-requests",
+                                "/api/v1/accounts/*/unfreeze-requests/otp").hasRole("SUPPORT")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/unfreeze-requests/*/approve",
+                                "/api/v1/unfreeze-requests/*/reject").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/assisted/**").hasAnyRole("SUPPORT", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
