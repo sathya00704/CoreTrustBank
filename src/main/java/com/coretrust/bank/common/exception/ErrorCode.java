@@ -24,7 +24,13 @@ public enum ErrorCode {
     ACCOUNT_LIMIT_REACHED(HttpStatus.CONFLICT, "Account limit reached"),
     INVALID_ACCOUNT_STATE(HttpStatus.CONFLICT, "Invalid account state"),
     SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT, "Session already active"),
-    SESSION_REVOKED(HttpStatus.UNAUTHORIZED, "Session revoked");
+    SESSION_REVOKED(HttpStatus.UNAUTHORIZED, "Session revoked"),
+    OTP_INVALID(HttpStatus.BAD_REQUEST, "Invalid OTP"),
+    OTP_EXPIRED(HttpStatus.BAD_REQUEST, "OTP expired"),
+    OTP_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Too many OTP attempts"),
+    INVALID_REQUEST_STATE(HttpStatus.CONFLICT, "Invalid request state"),
+    SELF_APPROVAL_NOT_ALLOWED(HttpStatus.FORBIDDEN, "Self-approval not allowed"),
+    EMAIL_DELIVERY_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery failed");
 
     private final HttpStatus status;
     private final String title;
