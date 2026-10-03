@@ -2,7 +2,10 @@ package com.coretrust.bank.beneficiary.entity;
 
 import com.coretrust.bank.common.entity.BaseEntity;
 import com.coretrust.bank.user.entity.User;
+import com.coretrust.bank.common.exception.BusinessException;
+import com.coretrust.bank.common.exception.ErrorCode;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -35,5 +38,24 @@ public class Beneficiary extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Setter(AccessLevel.NONE)   // change only via deactivate() / reactivate()
     private BeneficiaryStatus status = BeneficiaryStatus.ACTIVE;
+
+    public void deactivate() {
+        if (status != BeneficiaryStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE, "This beneficiary is already inactive.");
+        }
+        status = BeneficiaryStatus.INACTIVE;
+    }
+
+    /** Re-adding a previously removed beneficiary reuses its record (details may have changed). */
+    public void reactivate(String beneficiaryName, String bankName, String ifscCode) {
+        if (status != BeneficiaryStatus.INACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE, "This beneficiary is already active.");
+        }
+        this.beneficiaryName = beneficiaryName;
+        this.bankName = bankName;
+        this.ifscCode = ifscCode;
+        this.status = BeneficiaryStatus.ACTIVE;
+    }
 }

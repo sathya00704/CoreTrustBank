@@ -88,6 +88,8 @@ public class SecurityConfig {
                                 "/api/v1/unfreeze-requests/*/approve",
                                 "/api/v1/unfreeze-requests/*/reject").hasRole("ADMIN")
                         .requestMatchers("/api/v1/assisted/**").hasAnyRole("SUPPORT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/beneficiaries").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/beneficiaries/*").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
