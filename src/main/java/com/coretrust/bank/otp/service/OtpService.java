@@ -6,6 +6,7 @@ import com.coretrust.bank.audit.service.AuditService;
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.exception.ErrorCode;
 import com.coretrust.bank.common.util.HashUtils;
+import com.coretrust.bank.common.util.MaskingUtils;
 import com.coretrust.bank.notification.service.EmailService;
 import com.coretrust.bank.otp.config.OtpProperties;
 import com.coretrust.bank.otp.dto.OtpChallengeResponse;
@@ -69,7 +70,7 @@ public class OtpService {
         auditService.record(AuditAction.OTP_ISSUED, AuditEntityType.OTP, otp.getId(),
                 "OTP for %s issued to customer %s".formatted(purpose, customer.getEmail()));
 
-        return new OtpChallengeResponse(otp.getId(), maskEmail(customer.getEmail()), otp.getExpiresAt());
+        return new OtpChallengeResponse(otp.getId(), MaskingUtils.maskEmail(customer.getEmail()), otp.getExpiresAt());
     }
 
     /**
@@ -107,14 +108,5 @@ public class OtpService {
         otp.markConsumed();
         auditService.record(AuditAction.OTP_VERIFIED, AuditEntityType.OTP, otpId,
                 "OTP for %s verified".formatted(purpose));
-    }
-
-    private static String maskEmail(String email) {
-        int at = email.indexOf('@');
-        String local = email.substring(0, at);
-        String masked = local.length() <= 2
-                ? local.charAt(0) + "***"
-                : local.charAt(0) + "****" + local.charAt(local.length() - 1);
-        return masked + email.substring(at);
     }
 }
