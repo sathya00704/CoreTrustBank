@@ -36,6 +36,7 @@ public class Account extends BaseEntity {
     private AccountType accountType;
 
     @Column(nullable = false, precision = 19, scale = 2)
+    @Setter(AccessLevel.NONE)   // change only via debit() / credit()
     private BigDecimal balance = BigDecimal.ZERO;
 
     @Column(nullable = false, length = 3)
@@ -72,5 +73,26 @@ public class Account extends BaseEntity {
         }
         status = AccountStatus.ACTIVE;
         frozenByRole = null;
+    }
+
+    /** Money out: only ACTIVE accounts, never below zero. */
+    public void debit(BigDecimal amount) {
+        if (status != AccountStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Account %s is %s; money cannot be sent from it.".formatted(accountNumber, status));
+        }
+        if (balance.compareTo(amount) < 0) {
+            throw new BusinessException(ErrorCode.INSUFFICIENT_FUNDS, "Insufficient balance.");
+        }
+        balance = balance.subtract(amount);
+    }
+
+    /** Money in: allowed for ACTIVE and FROZEN accounts, not CLOSED. */
+    public void credit(BigDecimal amount) {
+        if (status == AccountStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Account %s is closed; it cannot receive money.".formatted(accountNumber));
+        }
+        balance = balance.add(amount);
     }
 }

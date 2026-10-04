@@ -20,4 +20,7 @@ public interface BeneficiaryRepository extends JpaRepository<Beneficiary, Long> 
     Page<Beneficiary> findByUserIdAndStatus(Long userId, BeneficiaryStatus status, Pageable pageable);
 
     Optional<Beneficiary> findByUserIdAndAccountNumber(Long userId, String accountNumber);
+
+    boolean existsByUserIdAndAccountNumberAndIfscCodeAndStatus(Long userId, String accountNumber,
+                                                               String ifscCode, BeneficiaryStatus status);
 }

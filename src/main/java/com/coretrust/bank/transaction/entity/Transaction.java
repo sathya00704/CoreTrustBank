@@ -22,7 +22,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
-public class Transaction extends BaseEntity {
+public class    Transaction extends BaseEntity {
 
     @Column(name = "transaction_reference", nullable = false, length = 40)
     private String transactionReference;
@@ -53,4 +53,15 @@ public class Transaction extends BaseEntity {
 
     @Column(length = 255)
     private String description;
+
+    /** Who performed it: the customer, or the staff member for branch operations */
+    @Column(name = "initiated_by_id")
+    private Long initiatedById;
+
+    /** Balances right after this transaction; needed for statements (Phase 6) */
+    @Column(name = "from_balance_after", precision = 19, scale = 2)
+    private BigDecimal fromBalanceAfter;
+
+    @Column(name = "to_balance_after", precision = 19, scale = 2)
+    private BigDecimal toBalanceAfter;
 }

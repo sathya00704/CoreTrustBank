@@ -27,6 +27,8 @@ import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.beans.TypeMismatchException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.ServletRequestBindingException;
 
 import java.net.URI;
 import java.time.Instant;
@@ -175,6 +177,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String name = (ex instanceof MethodArgumentTypeMismatchException m) ? m.getName() : ex.getPropertyName();
         ProblemDetail pd = problem(ErrorCode.VALIDATION_FAILED,
                 "Invalid value for parameter '%s'.".formatted(name), path(request));
+        return ResponseEntity.status(pd.getStatus()).body(pd);
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleServletRequestBindingException(
+            ServletRequestBindingException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+
+        String detail = (ex instanceof MissingRequestHeaderException m)
+                ? "Required header '%s' is missing.".formatted(m.getHeaderName())
+                : "The request is missing required information.";
+        ProblemDetail pd = problem(ErrorCode.VALIDATION_FAILED, detail, path(request));
         return ResponseEntity.status(pd.getStatus()).body(pd);
     }
 

@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
+import static org.springframework.http.HttpStatus.UNPROCESSABLE_CONTENT;
+
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
@@ -30,7 +32,11 @@ public enum ErrorCode {
     OTP_ATTEMPTS_EXCEEDED(HttpStatus.TOO_MANY_REQUESTS, "Too many OTP attempts"),
     INVALID_REQUEST_STATE(HttpStatus.CONFLICT, "Invalid request state"),
     SELF_APPROVAL_NOT_ALLOWED(HttpStatus.FORBIDDEN, "Self-approval not allowed"),
-    EMAIL_DELIVERY_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery failed");
+    EMAIL_DELIVERY_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "Email delivery failed"),
+    INSUFFICIENT_FUNDS(UNPROCESSABLE_CONTENT, "Insufficient funds"),
+    INVALID_TRANSFER(HttpStatus.BAD_REQUEST, "Invalid transfer"),
+    TRANSFER_LIMIT_EXCEEDED(UNPROCESSABLE_CONTENT, "Transfer limit exceeded"),
+    IDEMPOTENCY_KEY_REUSED(UNPROCESSABLE_CONTENT, "Idempotency key reused");
 
     private final HttpStatus status;
     private final String title;

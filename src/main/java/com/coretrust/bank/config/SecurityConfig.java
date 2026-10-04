@@ -90,6 +90,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/assisted/**").hasAnyRole("SUPPORT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/beneficiaries").hasRole("CUSTOMER")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/beneficiaries/*").hasRole("CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/transfers").hasRole("CUSTOMER")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
