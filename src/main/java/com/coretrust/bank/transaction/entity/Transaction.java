@@ -64,4 +64,10 @@ public class    Transaction extends BaseEntity {
 
     @Column(name = "to_balance_after", precision = 19, scale = 2)
     private BigDecimal toBalanceAfter;
+
+    /** Set on REVERSAL transactions: the transaction being undone */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "original_transaction_id",
+            foreignKey = @ForeignKey(name = "fk_transactions_original"))
+    private Transaction originalTransaction;
 }

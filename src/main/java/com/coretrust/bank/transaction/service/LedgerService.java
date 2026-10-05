@@ -100,6 +100,46 @@ public class LedgerService {
         return saved;
     }
 
+    /** Moves the money back and links the new REVERSAL to the original, which becomes REVERSED. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Transaction reverse(Transaction original, Long initiatedBy) {
+        if (original.getStatus() != TransactionStatus.SUCCESS || original.getType() == TransactionType.REVERSAL) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE,
+                    "Only successful transfers, deposits and withdrawals can be reversed.");
+        }
+
+        Account receivedMoney = original.getToAccount();   // null for withdrawals
+        Account paidMoney = original.getFromAccount();     // null for deposits
+        BigDecimal amount = original.getAmount();
+
+        if (receivedMoney != null) {
+            receivedMoney.debitForCorrection(amount);
+        }
+        if (paidMoney != null) {
+            paidMoney.credit(amount);
+        }
+
+        Transaction reversal = newTransaction(TransactionType.REVERSAL, amount, original.getCurrency(),
+                "Reversal of " + original.getTransactionReference(), initiatedBy);
+        reversal.setFromAccount(receivedMoney);
+        reversal.setToAccount(paidMoney);
+        reversal.setFromBalanceAfter(receivedMoney == null ? null : receivedMoney.getBalance());
+        reversal.setToBalanceAfter(paidMoney == null ? null : paidMoney.getBalance());
+        reversal.setOriginalTransaction(original);
+        Transaction saved = transactionRepository.save(reversal);
+
+        original.setStatus(TransactionStatus.REVERSED);
+
+        String details = "Reversal of transaction " + original.getTransactionReference();
+        if (receivedMoney != null) {
+            alert(receivedMoney.getUser(), receivedMoney, AlertType.DEBIT, saved, saved.getFromBalanceAfter(), details);
+        }
+        if (paidMoney != null) {
+            alert(paidMoney.getUser(), paidMoney, AlertType.CREDIT, saved, saved.getToBalanceAfter(), details);
+        }
+        return saved;
+    }
+
     // ---------- helpers ----------
 
     private static void requireValidAmount(BigDecimal amount) {

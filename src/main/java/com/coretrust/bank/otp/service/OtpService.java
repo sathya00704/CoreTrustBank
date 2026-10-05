@@ -106,9 +106,22 @@ public class OtpService {
         }
         if (!otp.getOperationHash().equals(HashUtils.sha256Hex(operationDetails))
                 || !passwordEncoder.matches(code, otp.getCodeHash())) {
-            int remaining = recordFailedAttempt(otpId, purpose);
-            throw new BusinessException(ErrorCode.OTP_INVALID,
-                    "Incorrect OTP. %d attempt(s) left.".formatted(remaining));
+            boolean codeMatches = passwordEncoder.matches(code, otp.getCodeHash());
+            boolean detailsMatch = otp.getOperationHash().equals(HashUtils.sha256Hex(operationDetails));
+
+            if (!codeMatches || !detailsMatch) {
+                String auditReason = !codeMatches
+                        ? "incorrect code"
+                        : "correct code but operation details differ from what the customer approved";
+                int remaining = recordFailedAttempt(otpId, purpose, auditReason);
+
+                String message = !codeMatches
+                        ? "Incorrect OTP. %d attempt(s) left.".formatted(remaining)
+                        : ("These details don't match what the customer approved (for example, the amount or "
+                        + "accounts changed). %d attempt(s) left. Request a new OTP if the details have changed.")
+                        .formatted(remaining);
+                throw new BusinessException(ErrorCode.OTP_INVALID, message);
+            }
         }
 
         otp.markConsumed();   // committed together with the operation, or rolled back with it
@@ -116,12 +129,12 @@ public class OtpService {
                 "OTP for %s verified".formatted(purpose));
     }
 
-    private int recordFailedAttempt(Long otpId, OtpPurpose purpose) {
+    private int recordFailedAttempt(Long otpId, OtpPurpose purpose, String reason) {
         Integer remaining = requiresNewTransaction.execute(status -> {
             Otp fresh = otpRepository.findById(otpId).orElseThrow();
             fresh.registerFailedAttempt();
             auditService.record(AuditAction.OTP_FAILED, AuditEntityType.OTP, otpId,
-                    "Incorrect OTP or changed operation details for %s".formatted(purpose));
+                    "OTP check failed for %s: %s".formatted(purpose, reason));
             return fresh.remainingAttempts();
         });
         return remaining == null ? 0 : remaining;

@@ -100,4 +100,20 @@ public class Account extends BaseEntity {
         }
         balance = balance.add(amount);
     }
+
+    /**
+     * Bank-initiated correction (reversals): allowed on FROZEN accounts, since the bank is correcting
+     * its own records, not the customer paying. Never on CLOSED accounts, never below zero.
+     */
+    public void debitForCorrection(BigDecimal amount) {
+        if (status == AccountStatus.CLOSED) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Account %s is closed; it cannot be debited.".formatted(accountNumber));
+        }
+        if (balance.compareTo(amount) < 0) {
+            throw new BusinessException(ErrorCode.INSUFFICIENT_FUNDS,
+                    "Account %s no longer has enough balance for this reversal.".formatted(accountNumber));
+        }
+        balance = balance.subtract(amount);
+    }
 }
