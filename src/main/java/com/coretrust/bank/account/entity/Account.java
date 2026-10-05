@@ -75,8 +75,8 @@ public class Account extends BaseEntity {
         frozenByRole = null;
     }
 
-    /** Money out: only ACTIVE accounts, never below zero. */
-    public void debit(BigDecimal amount) {
+    /** Throws if this amount cannot be debited right now. Used for early checks and by debit(). */
+    public void checkCanDebit(BigDecimal amount) {
         if (status != AccountStatus.ACTIVE) {
             throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
                     "Account %s is %s; money cannot be sent from it.".formatted(accountNumber, status));
@@ -84,6 +84,11 @@ public class Account extends BaseEntity {
         if (balance.compareTo(amount) < 0) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_FUNDS, "Insufficient balance.");
         }
+    }
+
+    /** Money out: only ACTIVE accounts, never below zero. */
+    public void debit(BigDecimal amount) {
+        checkCanDebit(amount);
         balance = balance.subtract(amount);
     }
 

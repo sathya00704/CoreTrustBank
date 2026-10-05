@@ -85,6 +85,21 @@ public class LedgerService {
         return saved;
     }
 
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Transaction withdraw(Account from, BigDecimal amount, String description, Long initiatedBy) {
+        requireValidAmount(amount);
+        from.debit(amount);
+
+        Transaction txn = newTransaction(TransactionType.WITHDRAWAL, amount, from.getCurrency(), description, initiatedBy);
+        txn.setFromAccount(from);
+        txn.setFromBalanceAfter(from.getBalance());
+        Transaction saved = transactionRepository.save(txn);
+
+        alert(from.getUser(), from, AlertType.DEBIT, saved, saved.getFromBalanceAfter(),
+                "Cash withdrawal at a CoreTrust branch");
+        return saved;
+    }
+
     // ---------- helpers ----------
 
     private static void requireValidAmount(BigDecimal amount) {

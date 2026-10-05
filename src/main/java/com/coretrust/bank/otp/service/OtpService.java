@@ -14,17 +14,17 @@ import com.coretrust.bank.otp.entity.Otp;
 import com.coretrust.bank.otp.entity.OtpPurpose;
 import com.coretrust.bank.otp.repository.OtpRepository;
 import com.coretrust.bank.user.entity.User;
-import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
 import java.time.Instant;
 
 @Service
-@RequiredArgsConstructor
 public class OtpService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -34,11 +34,20 @@ public class OtpService {
     private final EmailService emailService;
     private final AuditService auditService;
     private final OtpProperties properties;
+    private final TransactionTemplate requiresNewTransaction;
 
-    /**
-     * @param operationDetails canonical description of the exact operation (hashed and bound to the OTP)
-     * @param operationSummary human-readable description shown to the customer in the email
-     */
+    public OtpService(OtpRepository otpRepository, PasswordEncoder passwordEncoder, EmailService emailService,
+                      AuditService auditService, OtpProperties properties,
+                      PlatformTransactionManager transactionManager) {
+        this.otpRepository = otpRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
+        this.auditService = auditService;
+        this.properties = properties;
+        this.requiresNewTransaction = new TransactionTemplate(transactionManager);
+        this.requiresNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+    }
+
     @Transactional
     public OtpChallengeResponse issue(User customer, OtpPurpose purpose, String operationDetails,
                                       String operationSummary, Long requestedBy) {
@@ -74,10 +83,10 @@ public class OtpService {
     }
 
     /**
-     * Own transaction: failed attempts and consumption are committed even if the calling operation
-     * later rolls back. An OTP is spent once verified, even if the operation itself then fails.
+     * Joins the caller's transaction: the OTP is consumed only if the protected operation commits.
+     * A wrong attempt is recorded in its own transaction, so it counts even though the caller rolls back.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = BusinessException.class)
+    @Transactional
     public void verify(Long otpId, Long customerId, OtpPurpose purpose, String operationDetails, String code) {
         Otp otp = otpRepository.findById(otpId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.OTP_INVALID, "OTP is invalid."));
@@ -95,18 +104,26 @@ public class OtpService {
             throw new BusinessException(ErrorCode.OTP_ATTEMPTS_EXCEEDED,
                     "Too many incorrect attempts. Please request a new OTP.");
         }
-        // Same OTP, different details (e.g. account type changed after sending) = not what the customer approved
         if (!otp.getOperationHash().equals(HashUtils.sha256Hex(operationDetails))
                 || !passwordEncoder.matches(code, otp.getCodeHash())) {
-            otp.registerFailedAttempt();
-            auditService.record(AuditAction.OTP_FAILED, AuditEntityType.OTP, otpId,
-                    "Incorrect OTP or changed operation details for %s".formatted(purpose));
+            int remaining = recordFailedAttempt(otpId, purpose);
             throw new BusinessException(ErrorCode.OTP_INVALID,
-                    "Incorrect OTP. %d attempt(s) left.".formatted(otp.remainingAttempts()));
+                    "Incorrect OTP. %d attempt(s) left.".formatted(remaining));
         }
 
-        otp.markConsumed();
+        otp.markConsumed();   // committed together with the operation, or rolled back with it
         auditService.record(AuditAction.OTP_VERIFIED, AuditEntityType.OTP, otpId,
                 "OTP for %s verified".formatted(purpose));
+    }
+
+    private int recordFailedAttempt(Long otpId, OtpPurpose purpose) {
+        Integer remaining = requiresNewTransaction.execute(status -> {
+            Otp fresh = otpRepository.findById(otpId).orElseThrow();
+            fresh.registerFailedAttempt();
+            auditService.record(AuditAction.OTP_FAILED, AuditEntityType.OTP, otpId,
+                    "Incorrect OTP or changed operation details for %s".formatted(purpose));
+            return fresh.remainingAttempts();
+        });
+        return remaining == null ? 0 : remaining;
     }
 }
