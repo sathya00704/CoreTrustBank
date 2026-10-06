@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface ReversalRequestRepository extends JpaRepository<ReversalRequest, Long> {
 
@@ -17,4 +19,14 @@ public interface ReversalRequestRepository extends JpaRepository<ReversalRequest
     @Override
     @EntityGraph(attributePaths = "transaction")
     Page<ReversalRequest> findAll(Pageable pageable);
+
+    @Query("""
+            select count(r) > 0 from ReversalRequest r
+            join r.transaction t
+            left join t.fromAccount fa
+            left join t.toAccount ta
+            where r.status = :status and (fa.id = :accountId or ta.id = :accountId)
+            """)
+    boolean existsForAccountWithStatus(@Param("accountId") Long accountId,
+                                       @Param("status") ReversalRequestStatus status);
 }

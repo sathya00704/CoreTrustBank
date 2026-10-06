@@ -1,8 +1,10 @@
 package com.coretrust.bank.notification.listener;
 
+import com.coretrust.bank.account.event.AccountClosedEvent;
 import com.coretrust.bank.account.event.AccountFrozenEvent;
 import com.coretrust.bank.account.event.AccountUnfrozenEvent;
 import com.coretrust.bank.common.exception.BusinessException;
+import com.coretrust.bank.common.util.MaskingUtils;
 import com.coretrust.bank.notification.service.EmailService;
 import com.coretrust.bank.user.entity.Role;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +43,7 @@ public class AccountEmailListener {
                 %s
 
                 For further assistance, contact CoreTrust immediately.
-                """.formatted(event.customerName(), mask(event.accountNumber()), frozenBy, event.reason(), nextStep));
+                """.formatted(event.customerName(), MaskingUtils.maskAccountNumber(event.accountNumber()), frozenBy, event.reason(), nextStep));
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -56,7 +58,22 @@ public class AccountEmailListener {
                 The account is active again and can be used normally.
 
                 For further assistance, contact CoreTrust immediately.
-                """.formatted(event.customerName(), mask(event.accountNumber()), event.unfrozenBy(), event.reason()));
+                """.formatted(event.customerName(), MaskingUtils.maskAccountNumber(event.accountNumber()), event.unfrozenBy(), event.reason()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onAccountClosed(AccountClosedEvent event) {
+        send(event.customerEmail(), "Your CoreTrust account has been closed", """
+                Dear %s,
+
+                As requested, your account %s has been closed.
+
+                Reason given: %s
+
+                The account can no longer send or receive money. Its transaction history remains available.
+
+                If you did not request this, contact CoreTrust immediately.
+                """.formatted(event.customerName(), MaskingUtils.maskAccountNumber(event.accountNumber()), event.reason()));
     }
 
     /** The status change is already committed; a failed email must not affect it. */
@@ -68,9 +85,9 @@ public class AccountEmailListener {
         }
     }
 
-    /** 100107389094 → XXXXXXXX9094 */
-    private static String mask(String accountNumber) {
-        int visible = 4;
-        return "X".repeat(accountNumber.length() - visible) + accountNumber.substring(accountNumber.length() - visible);
-    }
+//    /** 100107389094 → XXXXXXXX9094 */
+//    private static String mask(String accountNumber) {
+//        int visible = 4;
+//        return "X".repeat(accountNumber.length() - visible) + accountNumber.substring(accountNumber.length() - visible);
+//    }
 }

@@ -90,9 +90,10 @@ public class CashService {
     /** Step 2 (staff): withdraw with the customer's OTP. Idempotent. */
     public IdempotentResult<CashTransactionResponse> withdraw(SecurityUser staff, String idempotencyKey,
                                                               WithdrawalRequest request) {
-        String fingerprint = "customer=%s|account=%s|amount=%s|otp=%d".formatted(
+        String fingerprint = "customer=%s|account=%s|amount=%s|desc=%s|otp=%d".formatted(
                 request.customerEmail().trim().toLowerCase(), request.accountNumber().trim(),
-                request.amount().stripTrailingZeros().toPlainString(), request.otpId());
+                request.amount().stripTrailingZeros().toPlainString(),
+                request.description() == null ? "" : request.description().trim(), request.otpId());
 
         return idempotencyService.execute(staff.id(), idempotencyKey, "WITHDRAWAL", fingerprint, () -> {
             User customer = userService.findActiveCustomerByEmail(request.customerEmail());

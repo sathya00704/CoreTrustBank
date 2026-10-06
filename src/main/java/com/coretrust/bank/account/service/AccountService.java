@@ -17,6 +17,7 @@ import com.coretrust.bank.common.exception.ErrorCode;
 import com.coretrust.bank.common.exception.ResourceNotFoundException;
 import com.coretrust.bank.otp.service.OtpService;
 import com.coretrust.bank.security.SecurityUser;
+import com.coretrust.bank.transaction.repository.ReversalRequestRepository;
 import com.coretrust.bank.user.entity.Role;
 import com.coretrust.bank.user.repository.UserRepository;
 import com.coretrust.bank.user.service.UserService;
@@ -32,6 +33,12 @@ import com.coretrust.bank.otp.dto.OtpVerificationRequest;
 import com.coretrust.bank.user.entity.Role;
 import com.coretrust.bank.account.event.AccountFrozenEvent;
 import com.coretrust.bank.account.event.AccountUnfrozenEvent;
+import com.coretrust.bank.account.dto.CloseAccountOtpRequest;
+import com.coretrust.bank.account.dto.CloseAccountRequest;
+import com.coretrust.bank.account.event.AccountClosedEvent;
+import com.coretrust.bank.common.util.MaskingUtils;
+import com.coretrust.bank.transaction.entity.ReversalRequestStatus;
+import com.coretrust.bank.transaction.repository.ReversalRequestRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -69,6 +76,10 @@ public class AccountService {
 
     @Value("${app.accounts.max-per-user}")
     private int maxAccountsPerUser;
+
+    private final ReversalRequestRepository reversalRequestRepository;
+
+    private static final String CLOSE_ACCOUNT_OPERATION = "CLOSE_ACCOUNT|customer=%d|account=%s";
 
     @Transactional
     public AccountResponse createAccount(SecurityUser principal, CreateAccountRequest request) {
@@ -247,9 +258,60 @@ public class AccountService {
     }
 
     private void ensureBelowAccountLimit(Long ownerId) {
-        if (accountRepository.countByUserId(ownerId) >= maxAccountsPerUser) {
+        if (accountRepository.countByUserIdAndStatusNot(ownerId, AccountStatus.CLOSED) >= maxAccountsPerUser) {
             throw new BusinessException(ErrorCode.ACCOUNT_LIMIT_REACHED,
                     "At most %d accounts are allowed per customer.".formatted(maxAccountsPerUser));
         }
+    }
+
+    /** Step 1 (staff): check the account can be closed, then email the customer an OTP. */
+    @Transactional
+    public OtpChallengeResponse requestCloseOtp(SecurityUser staff, CloseAccountOtpRequest request) {
+        User customer = userService.findActiveCustomerByEmail(request.customerEmail());
+        Account account = findCustomerAccount(customer, request.accountNumber());
+        ensureClosable(account);
+
+        return otpService.issue(customer, OtpPurpose.CLOSE_ACCOUNT,
+                CLOSE_ACCOUNT_OPERATION.formatted(customer.getId(), account.getAccountNumber()),
+                "permanently close your account %s (requested by CoreTrust support on your behalf)"
+                        .formatted(MaskingUtils.maskAccountNumber(account.getAccountNumber())),
+                staff.id());
+    }
+
+    /** Step 2 (staff): close with the customer's OTP. Final: closed accounts cannot be reopened. */
+    @Transactional
+    public AccountResponse closeAssisted(SecurityUser staff, CloseAccountRequest request) {
+        User customer = userService.findActiveCustomerByEmail(request.customerEmail());
+        Account account = findCustomerAccount(customer, request.accountNumber());
+        ensureClosable(account);   // before verify: a non-closable account doesn't use up an OTP attempt
+
+        otpService.verify(request.otpId(), customer.getId(), OtpPurpose.CLOSE_ACCOUNT,
+                CLOSE_ACCOUNT_OPERATION.formatted(customer.getId(), account.getAccountNumber()),
+                request.otpCode());
+
+        account.close();
+
+        String reason = request.reason().trim();
+        auditService.record(AuditAction.ACCOUNT_CLOSED, AuditEntityType.ACCOUNT, account.getId(),
+                "Account %s closed by %s %s for customer %s (OTP verified). Reason: %s".formatted(
+                        account.getAccountNumber(), staff.role(), staff.email(), customer.getEmail(), reason));
+        eventPublisher.publishEvent(new AccountClosedEvent(account.getAccountNumber(),
+                customer.getName(), customer.getEmail(), reason));
+        return AccountResponse.from(account);
+    }
+
+    private void ensureClosable(Account account) {
+        account.checkCanClose();
+        if (reversalRequestRepository.existsForAccountWithStatus(account.getId(), ReversalRequestStatus.PENDING)) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "This account is involved in a pending reversal request. Resolve it before closing.");
+        }
+    }
+
+    private Account findCustomerAccount(User customer, String accountNumber) {
+        return accountRepository.findByAccountNumber(accountNumber.trim())
+                .filter(a -> a.getUser().getId().equals(customer.getId()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND,
+                        "This customer has no account with that number."));
     }
 }

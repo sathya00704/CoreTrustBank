@@ -13,6 +13,7 @@ import lombok.Setter;
 import org.hibernate.annotations.Check;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @Entity
 @Table(name = "accounts",
@@ -52,6 +53,10 @@ public class Account extends BaseEntity {
     @Column(name = "frozen_by_role", length = 20)
     @Setter(AccessLevel.NONE)
     private Role frozenByRole;
+
+    @Column(name = "closed_at")
+    @Setter(AccessLevel.NONE)
+    private Instant closedAt;
 
     @Version
     @Setter(AccessLevel.NONE)   // only Hibernate should touch this
@@ -115,5 +120,24 @@ public class Account extends BaseEntity {
                     "Account %s no longer has enough balance for this reversal.".formatted(accountNumber));
         }
         balance = balance.subtract(amount);
+    }
+
+    /** Throws if the account cannot be closed right now. Used for early checks and by close(). */
+    public void checkCanClose() {
+        if (status != AccountStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "Only ACTIVE accounts can be closed. Current status: " + status);
+        }
+        if (balance.signum() != 0) {
+            throw new BusinessException(ErrorCode.INVALID_ACCOUNT_STATE,
+                    "The balance must be zero before closing (current balance: INR %,.2f). "
+                            .formatted(balance) + "Withdraw or transfer the remaining money first.");
+        }
+    }
+
+    public void close() {
+        checkCanClose();
+        status = AccountStatus.CLOSED;
+        closedAt = Instant.now();
     }
 }

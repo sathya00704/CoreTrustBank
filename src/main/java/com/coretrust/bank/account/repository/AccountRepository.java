@@ -1,6 +1,7 @@
 package com.coretrust.bank.account.repository;
 
 import com.coretrust.bank.account.entity.Account;
+import com.coretrust.bank.account.entity.AccountStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,4 +23,6 @@ public interface AccountRepository extends JpaRepository<Account, Long>, JpaSpec
     long countByUserId(Long userId);
 
     boolean existsByAccountNumber(String accountNumber);
+
+    long countByUserIdAndStatusNot(Long userId, AccountStatus status);
 }

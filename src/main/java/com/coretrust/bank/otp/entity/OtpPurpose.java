@@ -12,7 +12,8 @@ public enum OtpPurpose {
     CASH_WITHDRAWAL("withdraw cash"),
     ASSISTED_TRANSFER("make a transfer"),
     UPDATE_PHONE("update your phone number"),
-    UNFREEZE_ACCOUNT("unfreeze an account");
+    UNFREEZE_ACCOUNT("unfreeze an account"),
+    CLOSE_ACCOUNT("close an account");
 
     private final String description;
 }

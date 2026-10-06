@@ -6,6 +6,8 @@ import com.coretrust.bank.account.dto.AssistedAccountRequest;
 import com.coretrust.bank.account.service.AccountService;
 import com.coretrust.bank.otp.dto.OtpChallengeResponse;
 import com.coretrust.bank.security.SecurityUser;
+import com.coretrust.bank.account.dto.CloseAccountOtpRequest;
+import com.coretrust.bank.account.dto.CloseAccountRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -34,5 +36,17 @@ public class AssistedAccountController {
     public AccountResponse openAccount(@AuthenticationPrincipal SecurityUser staff,
                                        @Valid @RequestBody AssistedAccountRequest request) {
         return accountService.openAssistedAccount(staff, request);
+    }
+
+    @PostMapping("/close/otp")
+    public OtpChallengeResponse requestCloseOtp(@AuthenticationPrincipal SecurityUser staff,
+                                                @Valid @RequestBody CloseAccountOtpRequest request) {
+        return accountService.requestCloseOtp(staff, request);
+    }
+
+    @PostMapping("/close")
+    public AccountResponse closeAccount(@AuthenticationPrincipal SecurityUser staff,
+                                        @Valid @RequestBody CloseAccountRequest request) {
+        return accountService.closeAssisted(staff, request);
     }
 }
