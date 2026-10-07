@@ -7,5 +7,6 @@ public enum AuditEntityType {
     TRANSACTION,
     OTP,
     UNFREEZE_REQUEST,
-    REVERSAL_REQUEST
+    REVERSAL_REQUEST,
+    DISPUTE
 }

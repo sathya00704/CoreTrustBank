@@ -95,6 +95,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/reversal-requests/*/approve",
                                 "/api/v1/reversal-requests/*/reject").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/transactions/*/disputes").hasRole("SUPPORT")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/disputes/*/resolve",
+                                "/api/v1/disputes/*/reject").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

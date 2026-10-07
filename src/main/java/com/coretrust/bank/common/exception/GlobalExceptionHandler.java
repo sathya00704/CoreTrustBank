@@ -34,6 +34,9 @@ import java.net.URI;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.time.temporal.Temporal;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 /** NOTES:
  * Every error leaves the API as an RFC 9457 ProblemDetail with two extra fields:
@@ -127,7 +130,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         Map<String, String> errors = new LinkedHashMap<>();
         for (FieldError fe : ex.getBindingResult().getFieldErrors()) {
-            errors.putIfAbsent(fe.getField(), fe.getDefaultMessage());
+            String message = fe.getDefaultMessage();
+            if (fe.isBindingFailure()) {
+                // Conversion failed (e.g. "BANANA" into an enum): replace Spring's technical text
+                Class<?> requiredType = fe.contains(TypeMismatchException.class)
+                        ? fe.unwrap(TypeMismatchException.class).getRequiredType()
+                        : null;
+                message = typeMismatchMessage(fe.getField(), fe.getRejectedValue(), requiredType);
+            }
+            errors.putIfAbsent(fe.getField(), message);
         }
         ex.getBindingResult().getGlobalErrors()
                 .forEach(ge -> errors.putIfAbsent(ge.getObjectName(), ge.getDefaultMessage()));
@@ -176,7 +187,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         String name = (ex instanceof MethodArgumentTypeMismatchException m) ? m.getName() : ex.getPropertyName();
         ProblemDetail pd = problem(ErrorCode.VALIDATION_FAILED,
-                "Invalid value for parameter '%s'.".formatted(name), path(request));
+                typeMismatchMessage(name, ex.getValue(), ex.getRequiredType()), path(request));
         return ResponseEntity.status(pd.getStatus()).body(pd);
     }
 
@@ -212,5 +223,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     //path gets the request URI from WebRequest
     private String path(WebRequest request) {
         return (request instanceof ServletWebRequest swr) ? swr.getRequest().getRequestURI() : "";
+    }
+
+    /** Human-readable conversion errors; lists the allowed values for enums. */
+    private static String typeMismatchMessage(String name, Object value, Class<?> requiredType) {
+        if (requiredType != null && requiredType.isEnum()) {
+            String allowed = Arrays.stream(requiredType.getEnumConstants())
+                    .map(Object::toString)
+                    .collect(Collectors.joining(", "));
+            return "Invalid value '%s' for '%s'. Allowed values: %s.".formatted(value, name, allowed);
+        }
+        if (requiredType != null && Temporal.class.isAssignableFrom(requiredType)) {
+            return "Invalid date '%s' for '%s'. Use the format yyyy-MM-dd.".formatted(value, name);
+        }
+        if (requiredType != null && Number.class.isAssignableFrom(requiredType)) {
+            return "Invalid value '%s' for '%s': must be a number.".formatted(value, name);
+        }
+        return "Invalid value '%s' for '%s'.".formatted(value, name);
     }
 }
