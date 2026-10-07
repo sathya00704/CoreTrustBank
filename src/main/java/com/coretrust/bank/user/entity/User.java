@@ -5,6 +5,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.coretrust.bank.common.exception.BusinessException;
+import com.coretrust.bank.common.exception.ErrorCode;
+import org.hibernate.annotations.BatchSize;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import java.time.Instant;
 
@@ -46,6 +52,16 @@ public class User extends BaseEntity {
     @Column(name = "session_valid_until")
     private Instant sessionValidUntil;
 
+    /** Granted permissions; only ever non-empty for SUPPORT users */
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "user_permissions",
+            joinColumns = @JoinColumn(name = "user_id"),
+            foreignKey = @ForeignKey(name = "fk_user_permissions_user"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "permission", nullable = false, length = 40)
+    @BatchSize(size = 50)
+    private Set<Permission> permissions = new HashSet<>();
+
     public boolean hasActiveSession(Instant now) {
         return activeSessionId != null && sessionValidUntil != null && sessionValidUntil.isAfter(now);
     }
@@ -62,5 +78,22 @@ public class User extends BaseEntity {
     public void endSession() {
         this.activeSessionId = null;
         this.sessionValidUntil = null;
+    }
+
+    public void lock() {
+        if (status != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE,
+                    "Only ACTIVE users can be locked. Current status: " + status);
+        }
+        status = UserStatus.LOCKED;
+        endSession();
+    }
+
+    public void unlock() {
+        if (status != UserStatus.LOCKED) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE,
+                    "Only LOCKED users can be unlocked. Current status: " + status);
+        }
+        status = UserStatus.ACTIVE;
     }
 }

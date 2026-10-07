@@ -99,6 +99,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/disputes/*/resolve",
                                 "/api/v1/disputes/*/reject").hasRole("ADMIN")
+                        .requestMatchers("/api/v1/audit-logs/**").hasAuthority("PERM_VIEW_AUDIT_LOGS")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/users/*/lock",
+                                "/api/v1/users/*/unlock").hasAuthority("PERM_MANAGE_USERS")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users").hasAnyRole("SUPPORT", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

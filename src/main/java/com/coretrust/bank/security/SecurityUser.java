@@ -3,6 +3,11 @@ package com.coretrust.bank.security;
 import com.coretrust.bank.user.entity.Role;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.entity.UserStatus;
+import com.coretrust.bank.user.entity.Permission;
+
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.Set;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,17 +20,32 @@ import java.util.List;
  * A small immutable copy of the User entity, never the entity itself.
  */
 public record SecurityUser(Long id, String email, String passwordHash, Role role, UserStatus status,
-                           String activeSessionId)
+                           String activeSessionId, Set<Permission> permissions)
         implements UserDetails {
 
     public static SecurityUser from(User user) {
         return new SecurityUser(user.getId(), user.getEmail(), user.getPasswordHash(),
-                user.getRole(), user.getStatus(), user.getActiveSessionId());
+                user.getRole(), user.getStatus(), user.getActiveSessionId(),
+                Set.copyOf(user.getPermissions()));
     }
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.name()));
+        for (Permission permission : effectivePermissions()) {
+            authorities.add(new SimpleGrantedAuthority(permission.authority()));
+        }
+        return authorities;
+    }
+
+    /** Admins implicitly hold every permission. */
+    public Set<Permission> effectivePermissions() {
+        return role == Role.ADMIN ? EnumSet.allOf(Permission.class) : permissions;
+    }
+
+    public boolean hasPermission(Permission permission) {
+        return effectivePermissions().contains(permission);
     }
 
     /** ADMIN and SUPPORT can see all customers' data; CUSTOMERs only their own. */
