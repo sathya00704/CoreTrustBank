@@ -31,7 +31,8 @@ public class SecurityConfig {
             "/api/v1/auth/register",
             "/api/v1/auth/login",
             "/api/v1/auth/refresh",
-            "/api/v1/auth/logout"
+            "/api/v1/auth/logout",
+            "/api/v1/auth/set-password"
     };
 
     private static final String[] SWAGGER_ENDPOINTS = {
@@ -104,6 +105,7 @@ public class SecurityConfig {
                                 "/api/v1/users/*/lock",
                                 "/api/v1/users/*/unlock").hasAuthority("PERM_MANAGE_USERS")
                         .requestMatchers(HttpMethod.GET, "/api/v1/users").hasAnyRole("SUPPORT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/users/*/resend-setup-link").hasAnyRole("SUPPORT", "ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -183,6 +183,16 @@ public class AccountService {
         return AccountResponse.from(account);
     }
 
+    /** During assisted registration: no OTP, since the customer is being onboarded in person. */
+    @Transactional
+    public AccountResponse openAccountForNewCustomer(SecurityUser staff, Long customerId, AccountType accountType) {
+        Account saved = openAccount(customerId, accountType);
+        auditService.record(AuditAction.ACCOUNT_CREATED, AuditEntityType.ACCOUNT, saved.getId(),
+                "%s account %s opened by %s %s during assisted registration".formatted(
+                        saved.getAccountType(), saved.getAccountNumber(), staff.role(), staff.email()));
+        return AccountResponse.from(saved);
+    }
+
     /** Own account, currently frozen, and frozen by the customer themselves. */
     private Account findSelfUnfreezableAccount(SecurityUser principal, Long accountId) {
         Account account = accountRepository.findByIdAndUserId(accountId, principal.id())

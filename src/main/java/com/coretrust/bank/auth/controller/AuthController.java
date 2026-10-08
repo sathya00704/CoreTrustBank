@@ -4,6 +4,8 @@ import com.coretrust.bank.auth.dto.*;
 import com.coretrust.bank.auth.service.AuthService;
 import com.coretrust.bank.common.dto.MessageResponse;
 import com.coretrust.bank.user.dto.UserResponse;
+import com.coretrust.bank.auth.dto.SetPasswordRequest;
+import com.coretrust.bank.auth.service.PasswordSetupService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +21,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class AuthController {
 
     private final AuthService authService;
+
+    private final PasswordSetupService passwordSetupService;
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -42,5 +46,11 @@ public class AuthController {
         return MessageResponse.of(result == LogoutResult.LOGGED_OUT
                 ? "You have been logged out successfully."
                 : "You were already logged out.");
+    }
+
+    @PostMapping("/set-password")
+    public MessageResponse setPassword(@Valid @RequestBody SetPasswordRequest request) {
+        passwordSetupService.setPassword(request);
+        return MessageResponse.of("Your password has been set. You can now log in.");
     }
 }
