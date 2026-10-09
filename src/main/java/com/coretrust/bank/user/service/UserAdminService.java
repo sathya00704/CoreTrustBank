@@ -60,7 +60,7 @@ public class UserAdminService {
     }
 
     @Transactional
-    public UserAdminResponse lock(SecurityUser actor, Long userId, String reason) {
+    public UserAdminResponse lock(SecurityUser actor, Long userId, String reason, String customerMessage) {
         User target = findManageable(actor, userId);
         target.lock();                                           // also ends the active session
         refreshTokenRepository.revokeAllActiveByUserId(target.getId());
@@ -68,7 +68,10 @@ public class UserAdminService {
         auditService.record(AuditAction.USER_LOCKED, AuditEntityType.USER, target.getId(),
                 "%s %s locked by %s %s. Reason: %s".formatted(target.getRole(), target.getEmail(),
                         actor.role(), actor.email(), reason));
-        eventPublisher.publishEvent(new UserLockedEvent(target.getName(), target.getEmail(), reason));
+        String shownToUser = (customerMessage == null || customerMessage.isBlank())
+                ? "For security reasons. Please contact CoreTrust Support for more information."
+                : customerMessage.trim();
+        eventPublisher.publishEvent(new UserLockedEvent(target.getName(), target.getEmail(), shownToUser));
         return UserAdminResponse.from(target);
     }
 

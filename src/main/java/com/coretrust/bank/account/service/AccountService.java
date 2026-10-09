@@ -112,7 +112,7 @@ public class AccountService {
     }
 
     @Transactional
-    public AccountResponse freeze(SecurityUser principal, Long accountId, String reason) {
+    public AccountResponse freeze(SecurityUser principal, Long accountId, String reason, String customerMessage) {
         // Customers: own accounts only (404 otherwise). Admins: any account.
         Account account = findAccessibleAccount(principal, accountId);
         account.freeze(principal.role());
@@ -127,7 +127,8 @@ public class AccountService {
 
         User owner = account.getUser();
         eventPublisher.publishEvent(new AccountFrozenEvent(account.getAccountNumber(),
-                owner.getName(), owner.getEmail(), principal.role(), reason));
+                owner.getName(), owner.getEmail(), principal.role(),
+                customerFacingFreezeMessage(principal.role(), reason, customerMessage)));
         return AccountResponse.from(account);
     }
 
@@ -323,5 +324,18 @@ public class AccountService {
                 .filter(a -> a.getUser().getId().equals(customer.getId()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND,
                         "This customer has no account with that number."));
+    }
+
+    /** The internal reason stays in the audit log; customers see this instead (unless they froze it themselves). */
+    private static String customerFacingFreezeMessage(Role actorRole, String reason, String customerMessage) {
+        if (actorRole == Role.CUSTOMER) {
+            return reason;
+        }
+        if (customerMessage != null && !customerMessage.isBlank()) {
+            return customerMessage.trim();
+        }
+        return actorRole == Role.SUPPORT
+                ? "As you requested."
+                : "For security reasons. Please contact CoreTrust Support for more information.";
     }
 }

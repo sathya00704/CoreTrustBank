@@ -104,7 +104,7 @@ public class UnfreezeRequestService {
         eventPublisher.publishEvent(new AccountUnfrozenEvent(account.getAccountNumber(),
                 owner.getName(), owner.getEmail(),
                 "CoreTrust Bank, after reviewing your request raised through Support",
-                request.getReason()));
+                "Your request was reviewed and approved by CoreTrust."));
         return UnfreezeRequestResponse.from(request);
     }
 

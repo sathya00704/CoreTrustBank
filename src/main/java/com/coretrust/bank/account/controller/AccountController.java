@@ -64,7 +64,7 @@ public class AccountController {
     public AccountResponse freeze(@AuthenticationPrincipal SecurityUser principal,
                                   @PathVariable Long id,
                                   @Valid @RequestBody AccountStatusChangeRequest request) {
-        return accountService.freeze(principal, id, request.reason());
+        return accountService.freeze(principal, id, request.reason(), request.customerMessage());
     }
 
     @PostMapping("/{id}/unfreeze/otp")

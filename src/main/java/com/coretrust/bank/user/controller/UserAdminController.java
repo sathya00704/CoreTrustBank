@@ -48,7 +48,7 @@ public class UserAdminController {
     @PreAuthorize("hasAuthority('PERM_MANAGE_USERS')")
     public UserAdminResponse lock(@AuthenticationPrincipal SecurityUser principal, @PathVariable Long id,
                                   @Valid @RequestBody UserStatusChangeRequest request) {
-        return userAdminService.lock(principal, id, request.reason());
+        return userAdminService.lock(principal, id, request.reason(), request.customerMessage());
     }
 
     @PostMapping("/{id}/unlock")
