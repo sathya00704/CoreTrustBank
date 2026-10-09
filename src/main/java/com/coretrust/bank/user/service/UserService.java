@@ -14,6 +14,16 @@ import com.coretrust.bank.user.dto.ChangePasswordRequest;
 import com.coretrust.bank.audit.entity.AuditAction;
 import com.coretrust.bank.audit.entity.AuditEntityType;
 import com.coretrust.bank.audit.service.AuditService;
+import com.coretrust.bank.common.util.MaskingUtils;
+import com.coretrust.bank.otp.dto.OtpChallengeResponse;
+import com.coretrust.bank.otp.entity.OtpPurpose;
+import com.coretrust.bank.otp.service.OtpService;
+import com.coretrust.bank.security.SecurityUser;
+import com.coretrust.bank.user.dto.PhoneUpdateOtpRequest;
+import com.coretrust.bank.user.dto.PhoneUpdateRequest;
+import com.coretrust.bank.user.dto.UserAdminResponse;
+import com.coretrust.bank.user.event.PhoneUpdatedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +39,11 @@ public class UserService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     private final AuditService auditService;
+
+    private final OtpService otpService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    private static final String UPDATE_PHONE_OPERATION = "UPDATE_PHONE|customer=%d|phone=%s";
 
     @Transactional(readOnly = true)
     public UserResponse getProfile(Long userId) {
@@ -91,6 +106,49 @@ public class UserService {
             throw new BusinessException(ErrorCode.ACCOUNT_DISABLED, "Customer account is inactive or locked.");
         }
         return user;
+    }
+
+    /** Step 1 (staff): validate the new number, then email the customer an OTP naming it. */
+    @Transactional
+    public OtpChallengeResponse requestPhoneUpdateOtp(SecurityUser staff, PhoneUpdateOtpRequest request) {
+        User customer = findActiveCustomerByEmail(request.customerEmail());
+        validateNewPhone(customer, request.newPhone());
+
+        return otpService.issue(customer, OtpPurpose.UPDATE_PHONE,
+                UPDATE_PHONE_OPERATION.formatted(customer.getId(), request.newPhone()),
+                "change the phone number on your profile to %s (requested by CoreTrust support on your behalf)"
+                        .formatted(MaskingUtils.maskPhone(request.newPhone())),
+                staff.id());
+    }
+
+    /** Step 2 (staff): change the number once the customer has shared the OTP. */
+    @Transactional
+    public UserAdminResponse updatePhoneAssisted(SecurityUser staff, PhoneUpdateRequest request) {
+        User customer = findActiveCustomerByEmail(request.customerEmail());
+        validateNewPhone(customer, request.newPhone());
+        otpService.verify(request.otpId(), customer.getId(), OtpPurpose.UPDATE_PHONE,
+                UPDATE_PHONE_OPERATION.formatted(customer.getId(), request.newPhone()), request.otpCode());
+
+        String oldMasked = MaskingUtils.maskPhone(customer.getPhone());
+        String newMasked = MaskingUtils.maskPhone(request.newPhone());
+        customer.setPhone(request.newPhone());
+
+        auditService.record(AuditAction.PHONE_UPDATED, AuditEntityType.USER, customer.getId(),
+                "Phone of %s changed from %s to %s by %s %s (OTP verified)".formatted(
+                        customer.getEmail(), oldMasked, newMasked, staff.role(), staff.email()));
+        eventPublisher.publishEvent(new PhoneUpdatedEvent(customer.getName(), customer.getEmail(),
+                oldMasked, newMasked, "CoreTrust Support, at your request"));
+        return UserAdminResponse.from(customer);
+    }
+
+    private void validateNewPhone(User customer, String newPhone) {
+        if (newPhone.equals(customer.getPhone())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "This is already the customer's phone number.");
+        }
+        if (userRepository.existsByPhone(newPhone)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE,
+                    "This phone number is already registered to another profile.");
+        }
     }
 
     private User findUser(Long userId) {

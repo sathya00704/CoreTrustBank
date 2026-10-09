@@ -35,4 +35,12 @@ public final class MaskingUtils {
         }
         return masked.toString();
     }
+
+    /** 9876543210 → ******3210 */
+    public static String maskPhone(String phone) {
+        if (phone == null || phone.length() <= 4) {
+            return phone;
+        }
+        return "*".repeat(phone.length() - 4) + phone.substring(phone.length() - 4);
+    }
 }

@@ -2,6 +2,7 @@ package com.coretrust.bank.notification.listener;
 
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.notification.service.EmailService;
+import com.coretrust.bank.user.event.PhoneUpdatedEvent;
 import com.coretrust.bank.user.event.UserLockedEvent;
 import com.coretrust.bank.user.event.UserUnlockedEvent;
 import lombok.RequiredArgsConstructor;
@@ -48,5 +49,19 @@ public class UserStatusEmailListener {
         } catch (BusinessException ex) {
             log.warn("User status email could not be delivered (subject: {})", subject);
         }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onPhoneUpdated(PhoneUpdatedEvent event) {
+        send(event.email(), "Your CoreTrust phone number has been changed", """
+                Dear %s,
+
+                The phone number on your CoreTrust profile was changed by %s.
+
+                  Old number: %s
+                  New number: %s
+
+                If you did not request this change, contact CoreTrust immediately.
+                """.formatted(event.name(), event.updatedBy(), event.oldPhoneMasked(), event.newPhoneMasked()));
     }
 }

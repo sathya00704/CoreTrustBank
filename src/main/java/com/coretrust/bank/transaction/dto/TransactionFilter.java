@@ -19,6 +19,7 @@ public record TransactionFilter(
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
         @DecimalMin("0.00") BigDecimal minAmount,
         @DecimalMin("0.00") BigDecimal maxAmount,
-        @Size(max = 100) String search
+        @Size(max = 100) String search,
+        Boolean flagged
 ) {
 }

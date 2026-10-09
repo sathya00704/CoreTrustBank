@@ -21,6 +21,8 @@ public record TransactionResponse(
         Direction direction,               // relative to the account the row is viewed from
         BigDecimal balanceAfter,           // that account's balance right after this transaction
         String originalTransactionReference, // for REVERSAL rows
-        Instant createdAt
+        Instant createdAt,
+        Boolean flagged,                   // staff only: null for customers
+        String flagReason                  // staff only: null for customers
 ) {
 }

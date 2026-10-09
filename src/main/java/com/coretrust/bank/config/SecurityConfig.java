@@ -106,6 +106,9 @@ public class SecurityConfig {
                                 "/api/v1/users/*/unlock").hasAuthority("PERM_MANAGE_USERS")
                         .requestMatchers(HttpMethod.GET, "/api/v1/users").hasAnyRole("SUPPORT", "ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/users/*/resend-setup-link").hasAnyRole("SUPPORT", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/transactions/*/flag",
+                                "/api/v1/transactions/*/unflag").hasAuthority("PERM_FLAG_TRANSACTIONS")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

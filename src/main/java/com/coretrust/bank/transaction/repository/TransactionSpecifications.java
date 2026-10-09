@@ -69,6 +69,10 @@ public final class TransactionSpecifications {
                         cb.like(cb.lower(root.get("transactionReference")), pattern, '\\'),
                         cb.like(cb.lower(cb.coalesce(root.<String>get("description"), "")), pattern, '\\')));
             }
+            // Only for staff queries (customers have restrictToUserId set)
+            if (restrictToUserId == null && f.flagged() != null) {
+                predicates.add(cb.equal(root.get("flagged"), f.flagged()));
+            }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
     }

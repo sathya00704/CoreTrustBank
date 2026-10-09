@@ -2,6 +2,12 @@ package com.coretrust.bank.transaction.entity;
 
 import com.coretrust.bank.account.entity.Account;
 import com.coretrust.bank.common.entity.BaseEntity;
+import com.coretrust.bank.common.exception.BusinessException;
+import com.coretrust.bank.common.exception.ErrorCode;
+import lombok.AccessLevel;
+import org.hibernate.annotations.ColumnDefault;
+
+import java.time.Instant;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,7 +28,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 @NoArgsConstructor
-public class    Transaction extends BaseEntity {
+public class Transaction extends BaseEntity {
 
     @Column(name = "transaction_reference", nullable = false, length = 40)
     private String transactionReference;
@@ -70,4 +76,48 @@ public class    Transaction extends BaseEntity {
     @JoinColumn(name = "original_transaction_id",
             foreignKey = @ForeignKey(name = "fk_transactions_original"))
     private Transaction originalTransaction;
+
+    /** Admin marker for investigation. Visible to staff only; never shown to customers. */
+    @Column(nullable = false)
+    @ColumnDefault("false")
+    @Setter(AccessLevel.NONE)
+    private boolean flagged = false;
+
+    @Column(name = "flag_reason", length = 255)
+    @Setter(AccessLevel.NONE)
+    private String flagReason;
+
+    @Column(name = "flagged_by_email", length = 150)
+    @Setter(AccessLevel.NONE)
+    private String flaggedByEmail;
+
+    @Column(name = "flagged_at")
+    @Setter(AccessLevel.NONE)
+    private Instant flaggedAt;
+
+    @Column(name = "flagged_by_id")
+    @Setter(AccessLevel.NONE)
+    private Long flaggedById;
+
+    public void flag(Long flaggedById, String flaggedByEmail, String reason) {
+        if (flagged) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE, "This transaction is already flagged.");
+        }
+        this.flagged = true;
+        this.flagReason = reason;
+        this.flaggedById = flaggedById;
+        this.flaggedByEmail = flaggedByEmail;
+        this.flaggedAt = Instant.now();
+    }
+
+    public void unflag() {
+        if (!flagged) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE, "This transaction is not flagged.");
+        }
+        this.flagged = false;
+        this.flagReason = null;
+        this.flaggedById = null;
+        this.flaggedByEmail = null;
+        this.flaggedAt = null;
+    }
 }

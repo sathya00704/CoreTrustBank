@@ -111,7 +111,9 @@ public class TransactionQueryService {
                 displayNumber(to, viewer), holderName(to),
                 direction, balanceAfter,
                 t.getOriginalTransaction() == null ? null : t.getOriginalTransaction().getTransactionReference(),
-                t.getCreatedAt());
+                t.getCreatedAt(),
+                viewer.isStaff() ? t.isFlagged() : null,
+                viewer.isStaff() ? t.getFlagReason() : null);
     }
 
     /** Staff and the account's owner see the full number; anyone else sees it masked. */
