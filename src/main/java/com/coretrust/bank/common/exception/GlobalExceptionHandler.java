@@ -102,10 +102,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(ErrorCode.INVALID_CREDENTIALS, "Invalid email or password.", req.getRequestURI());
     }
 
-    @ExceptionHandler({DisabledException.class, LockedException.class})
-    public ResponseEntity<ProblemDetail> handleDisabled(AuthenticationException ex, HttpServletRequest req) {
+    /** Spring Security throws this for users whose isEnabled() is false: INACTIVE, i.e. setup not finished. */
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ProblemDetail> handleSetupPending(DisabledException ex, HttpServletRequest req) {
+        return respond(ErrorCode.ACCOUNT_SETUP_PENDING,
+                "Your profile isn't active yet. Finish setting it up using the link we emailed you, "
+                        + "or ask CoreTrust Support to send a new one.", req.getRequestURI());
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ProblemDetail> handleLocked(LockedException ex, HttpServletRequest req) {
         return respond(ErrorCode.ACCOUNT_DISABLED,
-                "Your account is inactive or locked. Please contact support.", req.getRequestURI());
+                "Your profile is locked. Please contact CoreTrust Support.", req.getRequestURI());
     }
 
     @ExceptionHandler(AuthenticationException.class)

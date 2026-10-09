@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -57,8 +58,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 SecurityUser user = userDetailsService.loadUserById(claims.userId());
-                if (!user.isEnabled() || !user.isAccountNonLocked()) {
-                    throw new DisabledException("Account is inactive or locked");
+                if (!user.isAccountNonLocked()) {
+                    throw new LockedException("Account is locked");
+                }
+                if (!user.isEnabled()) {
+                    throw new DisabledException("Account is not active");
                 }
                 // Token belongs to a session that was logged out or replaced by a newer login
                 if (!Objects.equals(claims.sessionId(), user.activeSessionId())) {
