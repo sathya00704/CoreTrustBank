@@ -3,9 +3,12 @@ package com.coretrust.bank.notification.entity;
 import com.coretrust.bank.common.entity.BaseEntity;
 import com.coretrust.bank.user.entity.User;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.Instant;
 
 @Entity
 @Table(name = "notifications",
@@ -28,5 +31,21 @@ public class Notification extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
+    @Setter(AccessLevel.NONE)
     private NotificationStatus status = NotificationStatus.UNREAD;
+
+    @Column(nullable = false, length = 150)
+    private String title;
+
+    @Column(name = "read_at")
+    @Setter(AccessLevel.NONE)
+    private Instant readAt;
+
+    /** Idempotent: marking an already-read notification is a no-op. */
+    public void markRead() {
+        if (status == NotificationStatus.UNREAD) {
+            status = NotificationStatus.READ;
+            readAt = Instant.now();
+        }
+    }
 }

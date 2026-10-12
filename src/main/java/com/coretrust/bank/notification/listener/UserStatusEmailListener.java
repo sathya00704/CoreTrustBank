@@ -1,22 +1,18 @@
 package com.coretrust.bank.notification.listener;
 
-import com.coretrust.bank.common.exception.BusinessException;
-import com.coretrust.bank.notification.service.EmailService;
+import com.coretrust.bank.notification.service.EmailDispatcher;
 import com.coretrust.bank.user.event.PhoneUpdatedEvent;
 import com.coretrust.bank.user.event.UserLockedEvent;
 import com.coretrust.bank.user.event.UserUnlockedEvent;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class UserStatusEmailListener {
-
-    private final EmailService emailService;
+    private final EmailDispatcher emailDispatcher;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onUserLocked(UserLockedEvent event) {
@@ -44,11 +40,7 @@ public class UserStatusEmailListener {
     }
 
     private void send(String to, String subject, String body) {
-        try {
-            emailService.send(to, subject, body);
-        } catch (BusinessException ex) {
-            log.warn("User status email could not be delivered (subject: {})", subject);
-        }
+        emailDispatcher.send(to, subject, body);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

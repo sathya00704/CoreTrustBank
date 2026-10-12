@@ -3,22 +3,19 @@ package com.coretrust.bank.notification.listener;
 import com.coretrust.bank.account.event.AccountClosedEvent;
 import com.coretrust.bank.account.event.AccountFrozenEvent;
 import com.coretrust.bank.account.event.AccountUnfrozenEvent;
-import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.util.MaskingUtils;
-import com.coretrust.bank.notification.service.EmailService;
+import com.coretrust.bank.notification.service.EmailDispatcher;
 import com.coretrust.bank.user.entity.Role;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-@Slf4j
 @Component
 @RequiredArgsConstructor
 public class AccountEmailListener {
 
-    private final EmailService emailService;
+    private final EmailDispatcher emailDispatcher;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onAccountFrozen(AccountFrozenEvent event) {
@@ -76,18 +73,7 @@ public class AccountEmailListener {
                 """.formatted(event.customerName(), MaskingUtils.maskAccountNumber(event.accountNumber()), event.reason()));
     }
 
-    /** The status change is already committed; a failed email must not affect it. */
     private void send(String to, String subject, String body) {
-        try {
-            emailService.send(to, subject, body);
-        } catch (BusinessException ex) {
-            log.warn("Account status email could not be delivered (subject: {})", subject);
-        }
+        emailDispatcher.send(to, subject, body);
     }
-
-//    /** 100107389094 → XXXXXXXX9094 */
-//    private static String mask(String accountNumber) {
-//        int visible = 4;
-//        return "X".repeat(accountNumber.length() - visible) + accountNumber.substring(accountNumber.length() - visible);
-//    }
 }

@@ -1,5 +1,5 @@
 package com.coretrust.bank.notification.entity;
 
 public enum NotificationType {
-    TRANSACTION, ACCOUNT, SECURITY, SYSTEM
+    TRANSACTION, ACCOUNT, SECURITY, SYSTEM, CASE_UPDATE
 }
