@@ -14,6 +14,12 @@ import com.coretrust.bank.common.util.SecureTokens;
 import com.coretrust.bank.notification.service.EmailService;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.entity.UserStatus;
+import com.coretrust.bank.auth.dto.ResetPasswordRequest;
+import com.coretrust.bank.auth.event.PasswordResetCompletedEvent;
+import com.coretrust.bank.auth.event.PasswordResetRequestedEvent;
+import com.coretrust.bank.auth.repository.RefreshTokenRepository;
+import com.coretrust.bank.user.repository.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,6 +43,16 @@ public class PasswordSetupService {
 
     @Value("${app.frontend.set-password-url}")
     private String setPasswordUrl;
+
+    private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Value("${app.password-reset.ttl}")
+    private Duration resetTtl;
+
+    @Value("${app.frontend.reset-password-url}")
+    private String resetPasswordUrl;
 
     /**
      * Joins the caller's transaction: if the email fails, the user creation rolls back too,
@@ -74,7 +90,7 @@ public class PasswordSetupService {
     @Transactional
     public void setPassword(SetPasswordRequest request) {
         PasswordSetupToken token = tokenRepository.findByTokenHash(HashUtils.sha256Hex(request.token()))
-                .filter(t -> t.isUsable(Instant.now()))
+                .filter(t -> t.getPurpose() == PasswordTokenPurpose.ACCOUNT_SETUP && t.isUsable(Instant.now()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN,
                         "This link is invalid or has expired. Ask CoreTrust to send a new one."));
 
@@ -89,5 +105,62 @@ public class PasswordSetupService {
 
         auditService.record(user.getId(), user.getEmail(), AuditAction.PASSWORD_SET, AuditEntityType.USER,
                 user.getId(), "Password set via setup link; profile activated");
+    }
+
+    /**
+     * Same outcome for every caller: the response never reveals whether the email is registered.
+     * Only ACTIVE profiles get a link; staff-created INACTIVE profiles use their setup link, locked ones need support.
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        userRepository.findByEmail(email.trim().toLowerCase())
+                .filter(user -> user.getStatus() == UserStatus.ACTIVE)
+                .ifPresent(this::issueResetLink);
+    }
+
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        PasswordSetupToken token = tokenRepository.findByTokenHash(HashUtils.sha256Hex(request.token()))
+                .filter(t -> t.getPurpose() == PasswordTokenPurpose.PASSWORD_RESET && t.isUsable(Instant.now()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_TOKEN,
+                        "This reset link is invalid or has expired. Please request a new one."));
+
+        User user = token.getUser();
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException(ErrorCode.ACCOUNT_DISABLED,
+                    "Your profile is locked. Please contact CoreTrust Support.");
+        }
+        if (passwordEncoder.matches(request.newPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED,
+                    "New password must be different from the current password.");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        token.markUsed();
+        // Whoever made the user forget, or stole, the old password is logged out everywhere
+        user.endSession();
+        refreshTokenRepository.revokeAllActiveByUserId(user.getId());
+
+        auditService.record(user.getId(), user.getEmail(), AuditAction.PASSWORD_RESET, AuditEntityType.USER,
+                user.getId(), "Password reset via email link; all sessions ended");
+        eventPublisher.publishEvent(new PasswordResetCompletedEvent(user.getName(), user.getEmail()));
+    }
+
+    private void issueResetLink(User user) {
+        tokenRepository.deleteUnused(user.getId(), PasswordTokenPurpose.PASSWORD_RESET);
+
+        String rawToken = SecureTokens.urlSafe(32);
+        PasswordSetupToken token = new PasswordSetupToken();
+        token.setUser(user);
+        token.setTokenHash(HashUtils.sha256Hex(rawToken));
+        token.setPurpose(PasswordTokenPurpose.PASSWORD_RESET);
+        token.setExpiresAt(Instant.now().plus(resetTtl));
+        tokenRepository.save(token);
+
+        auditService.record(user.getId(), user.getEmail(), AuditAction.PASSWORD_RESET_REQUESTED,
+                AuditEntityType.USER, user.getId(), "Password reset link requested");
+        // Sent after commit, in the background: the response time is the same whether or not the email exists
+        eventPublisher.publishEvent(new PasswordResetRequestedEvent(user.getName(), user.getEmail(),
+                resetPasswordUrl + "?token=" + rawToken, resetTtl.toMinutes()));
     }
 }

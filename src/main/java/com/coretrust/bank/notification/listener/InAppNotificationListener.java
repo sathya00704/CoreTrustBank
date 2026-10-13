@@ -12,6 +12,10 @@ import com.coretrust.bank.transaction.event.AlertType;
 import com.coretrust.bank.user.event.PhoneUpdatedEvent;
 import com.coretrust.bank.user.event.UserLockedEvent;
 import com.coretrust.bank.user.event.UserUnlockedEvent;
+import com.coretrust.bank.auth.event.PasswordResetCompletedEvent;
+import com.coretrust.bank.caseupdate.event.CaseUpdateEvent;
+import com.coretrust.bank.common.util.MaskingUtils;
+import com.coretrust.bank.user.event.EmailChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -86,5 +90,24 @@ public class InAppNotificationListener {
         notificationService.notifyUser(e.email(), NotificationType.SECURITY, "Phone number changed",
                 "Your phone number was changed from %s to %s by %s. If this wasn't you, contact CoreTrust."
                         .formatted(e.oldPhoneMasked(), e.newPhoneMasked(), e.updatedBy()));
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onCaseUpdate(CaseUpdateEvent e) {
+        notificationService.notifyUser(e.customerEmail(), NotificationType.CASE_UPDATE, e.title(), e.message());
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onPasswordReset(PasswordResetCompletedEvent e) {
+        notificationService.notifyUser(e.email(), NotificationType.SECURITY, "Password reset",
+                "Your password was reset and you were logged out everywhere. If this wasn't you, contact CoreTrust.");
+    }
+
+    /** Looked up by the NEW email: in this transaction, the user already has it. */
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void onEmailChanged(EmailChangedEvent e) {
+        notificationService.notifyUser(e.newEmail(), NotificationType.SECURITY, "Email address changed",
+                "Your login email was changed from %s to %s.".formatted(
+                        MaskingUtils.maskEmail(e.oldEmail()), MaskingUtils.maskEmail(e.newEmail())));
     }
 }

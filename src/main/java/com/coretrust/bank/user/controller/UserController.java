@@ -6,6 +6,10 @@ import com.coretrust.bank.user.dto.UpdateProfileRequest;
 import com.coretrust.bank.user.dto.UserResponse;
 import com.coretrust.bank.user.service.UserService;
 import com.coretrust.bank.user.dto.ChangePasswordRequest;
+import com.coretrust.bank.otp.dto.OtpChallengeResponse;
+import com.coretrust.bank.user.dto.EmailChangeOtpRequest;
+import com.coretrust.bank.user.dto.EmailChangeRequest;
+import org.springframework.security.access.prepost.PreAuthorize;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -37,5 +41,20 @@ public class UserController {
                                             @Valid @RequestBody ChangePasswordRequest request) {
         userService.changePassword(principal.id(), request);
         return MessageResponse.of("Password changed successfully. Please log in again with your new password.");
+    }
+
+    @PostMapping("/me/email/otp")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public OtpChallengeResponse requestEmailChange(@AuthenticationPrincipal SecurityUser principal,
+                                                   @Valid @RequestBody EmailChangeOtpRequest request) {
+        return userService.requestEmailChange(principal, request);
+    }
+
+    @PatchMapping("/me/email")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public MessageResponse changeEmail(@AuthenticationPrincipal SecurityUser principal,
+                                       @Valid @RequestBody EmailChangeRequest request) {
+        userService.changeEmail(principal, request);
+        return MessageResponse.of("Your email has been changed. Please log in again with your new email.");
     }
 }

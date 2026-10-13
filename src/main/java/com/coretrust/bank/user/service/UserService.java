@@ -23,6 +23,9 @@ import com.coretrust.bank.user.dto.PhoneUpdateOtpRequest;
 import com.coretrust.bank.user.dto.PhoneUpdateRequest;
 import com.coretrust.bank.user.dto.UserAdminResponse;
 import com.coretrust.bank.user.event.PhoneUpdatedEvent;
+import com.coretrust.bank.user.dto.EmailChangeOtpRequest;
+import com.coretrust.bank.user.dto.EmailChangeRequest;
+import com.coretrust.bank.user.event.EmailChangedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -44,6 +47,8 @@ public class UserService {
     private final ApplicationEventPublisher eventPublisher;
 
     private static final String UPDATE_PHONE_OPERATION = "UPDATE_PHONE|customer=%d|phone=%s";
+
+    private static final String CHANGE_EMAIL_OPERATION = "CHANGE_EMAIL|user=%d|email=%s";
 
     @Transactional(readOnly = true)
     public UserResponse getProfile(Long userId) {
@@ -154,5 +159,51 @@ public class UserService {
     private User findUser(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+    }
+
+    /** Step 1: password check, then an OTP to the NEW address (proves the customer owns it). */
+    @Transactional
+    public OtpChallengeResponse requestEmailChange(SecurityUser principal, EmailChangeOtpRequest request) {
+        User user = findUser(principal.id());
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "Current password is incorrect.");
+        }
+        String newEmail = request.newEmail().trim().toLowerCase();
+        validateNewEmail(user, newEmail);
+
+        auditService.record(AuditAction.EMAIL_CHANGE_REQUESTED, AuditEntityType.USER, user.getId(),
+                "Email change to %s requested".formatted(newEmail));
+        return otpService.issue(user, OtpPurpose.CHANGE_EMAIL,
+                CHANGE_EMAIL_OPERATION.formatted(user.getId(), newEmail),
+                "change the email address of your CoreTrust profile to " + newEmail,
+                principal.id(), newEmail);
+    }
+
+    /** Step 2: change it. The email is the login identity, so every session ends. */
+    @Transactional
+    public void changeEmail(SecurityUser principal, EmailChangeRequest request) {
+        User user = findUser(principal.id());
+        String newEmail = request.newEmail().trim().toLowerCase();
+        validateNewEmail(user, newEmail);
+        otpService.verify(request.otpId(), user.getId(), OtpPurpose.CHANGE_EMAIL,
+                CHANGE_EMAIL_OPERATION.formatted(user.getId(), newEmail), request.otpCode());
+
+        String oldEmail = user.getEmail();
+        user.setEmail(newEmail);
+        user.endSession();
+        refreshTokenRepository.revokeAllActiveByUserId(user.getId());
+
+        auditService.record(AuditAction.EMAIL_CHANGED, AuditEntityType.USER, user.getId(),
+                "Email changed from %s to %s; all sessions ended".formatted(oldEmail, newEmail));
+        eventPublisher.publishEvent(new EmailChangedEvent(user.getName(), oldEmail, newEmail));
+    }
+
+    private void validateNewEmail(User user, String newEmail) {
+        if (newEmail.equals(user.getEmail())) {
+            throw new BusinessException(ErrorCode.VALIDATION_FAILED, "This is already your email address.");
+        }
+        if (userRepository.existsByEmail(newEmail)) {
+            throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "This email is already registered.");
+        }
     }
 }

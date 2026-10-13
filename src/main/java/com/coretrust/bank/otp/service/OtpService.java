@@ -48,9 +48,17 @@ public class OtpService {
         this.requiresNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
+    /** Sends the OTP to the customer's registered email. */
     @Transactional
     public OtpChallengeResponse issue(User customer, OtpPurpose purpose, String operationDetails,
                                       String operationSummary, Long requestedBy) {
+        return issue(customer, purpose, operationDetails, operationSummary, requestedBy, customer.getEmail());
+    }
+
+    /** Sends the OTP to {@code deliverTo}, e.g. a new email address that must be proven first. */
+    @Transactional
+    public OtpChallengeResponse issue(User customer, OtpPurpose purpose, String operationDetails,
+                                      String operationSummary, Long requestedBy, String deliverTo) {
         otpRepository.invalidateActive(customer.getId(), purpose);
 
         String code = "%06d".formatted(RANDOM.nextInt(1_000_000));
@@ -65,7 +73,7 @@ public class OtpService {
         otp.setRequestedBy(requestedBy);
         otpRepository.save(otp);
 
-        emailService.send(customer.getEmail(), "Your CoreTrust OTP", """
+        emailService.send(deliverTo, "Your CoreTrust OTP", """
                 Dear %s,
 
                 Your OTP is %s. It is valid for %d minutes.
@@ -77,9 +85,9 @@ public class OtpService {
                 """.formatted(customer.getName(), code, properties.ttl().toMinutes(), operationSummary));
 
         auditService.record(AuditAction.OTP_ISSUED, AuditEntityType.OTP, otp.getId(),
-                "OTP for %s issued to customer %s".formatted(purpose, customer.getEmail()));
+                "OTP for %s issued to %s".formatted(purpose, deliverTo));
 
-        return new OtpChallengeResponse(otp.getId(), MaskingUtils.maskEmail(customer.getEmail()), otp.getExpiresAt());
+        return new OtpChallengeResponse(otp.getId(), MaskingUtils.maskEmail(deliverTo), otp.getExpiresAt());
     }
 
     /**

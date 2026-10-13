@@ -13,7 +13,8 @@ public enum OtpPurpose {
     ASSISTED_TRANSFER("make a transfer"),
     UPDATE_PHONE("update your phone number"),
     UNFREEZE_ACCOUNT("unfreeze an account"),
-    CLOSE_ACCOUNT("close an account");
+    CLOSE_ACCOUNT("close an account"),
+    CHANGE_EMAIL("change the email address of your profile");
 
     private final String description;
 }

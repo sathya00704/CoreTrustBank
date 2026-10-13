@@ -6,6 +6,8 @@ import com.coretrust.bank.common.dto.MessageResponse;
 import com.coretrust.bank.user.dto.UserResponse;
 import com.coretrust.bank.auth.dto.SetPasswordRequest;
 import com.coretrust.bank.auth.service.PasswordSetupService;
+import com.coretrust.bank.auth.dto.ForgotPasswordRequest;
+import com.coretrust.bank.auth.dto.ResetPasswordRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -52,5 +54,17 @@ public class AuthController {
     public MessageResponse setPassword(@Valid @RequestBody SetPasswordRequest request) {
         passwordSetupService.setPassword(request);
         return MessageResponse.of("Your password has been set. You can now log in.");
+    }
+
+    @PostMapping("/forgot-password")
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        passwordSetupService.requestPasswordReset(request.email());
+        return MessageResponse.of("If a profile exists for this email, we've sent a password reset link.");
+    }
+
+    @PostMapping("/reset-password")
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordSetupService.resetPassword(request);
+        return MessageResponse.of("Your password has been reset. Please log in with your new password.");
     }
 }
