@@ -9,9 +9,11 @@ import com.coretrust.bank.auth.entity.PasswordTokenPurpose;
 import com.coretrust.bank.auth.repository.PasswordSetupTokenRepository;
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.exception.ErrorCode;
+import com.coretrust.bank.common.util.ClientIp;
 import com.coretrust.bank.common.util.HashUtils;
 import com.coretrust.bank.common.util.SecureTokens;
 import com.coretrust.bank.notification.service.EmailService;
+import com.coretrust.bank.ratelimit.RateLimiter;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.entity.UserStatus;
 import com.coretrust.bank.auth.dto.ResetPasswordRequest;
@@ -53,6 +55,8 @@ public class PasswordSetupService {
 
     @Value("${app.frontend.reset-password-url}")
     private String resetPasswordUrl;
+
+    private final RateLimiter rateLimiter;
 
     /**
      * Joins the caller's transaction: if the email fails, the user creation rolls back too,
@@ -113,6 +117,8 @@ public class PasswordSetupService {
      */
     @Transactional
     public void requestPasswordReset(String email) {
+        rateLimiter.consume("forgot-password-ip", ClientIp.current());
+        rateLimiter.consume("forgot-password-email", email.trim().toLowerCase());
         userRepository.findByEmail(email.trim().toLowerCase())
                 .filter(user -> user.getStatus() == UserStatus.ACTIVE)
                 .ifPresent(this::issueResetLink);

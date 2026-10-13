@@ -130,6 +130,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return respond(ErrorCode.INTERNAL_ERROR, "An unexpected error occurred.", req.getRequestURI());
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ProblemDetail> handleRateLimit(RateLimitExceededException ex, HttpServletRequest req) {
+        ProblemDetail pd = problem(ex.getErrorCode(), ex.getMessage(), req.getRequestURI());
+        pd.setProperty("retryAfterSeconds", ex.getRetryAfterSeconds());
+        return ResponseEntity.status(pd.getStatus())
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(pd);
+    }
+
     // ---------- Overrides of Spring MVC's built-in handling ----------
 
     @Override

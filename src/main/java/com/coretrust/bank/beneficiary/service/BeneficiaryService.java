@@ -24,6 +24,7 @@ import com.coretrust.bank.common.util.MaskingUtils;
 import com.coretrust.bank.otp.dto.OtpChallengeResponse;
 import com.coretrust.bank.otp.entity.OtpPurpose;
 import com.coretrust.bank.otp.service.OtpService;
+import com.coretrust.bank.ratelimit.RateLimiter;
 import com.coretrust.bank.security.SecurityUser;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.repository.UserRepository;
@@ -52,6 +53,7 @@ public class BeneficiaryService {
     private final OtpService otpService;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final RateLimiter rateLimiter;
 
     @Value("${app.bank.ifsc}")
     private String bankIfsc;
@@ -67,6 +69,7 @@ public class BeneficiaryService {
 
     @Transactional(readOnly = true)
     public BeneficiaryLookupResponse lookup(SecurityUser principal, String ifscCode, String accountNumber) {
+        rateLimiter.consume("beneficiary-lookup", principal.id());
         String ifsc = ifscCode.trim().toUpperCase(Locale.ROOT);
         if (!ifsc.equals(bankIfsc)) {
             rejectFakeCoreTrustIfsc(ifsc);

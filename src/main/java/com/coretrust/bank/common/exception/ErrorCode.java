@@ -37,7 +37,8 @@ public enum ErrorCode {
     INVALID_TRANSFER(HttpStatus.BAD_REQUEST, "Invalid transfer"),
     TRANSFER_LIMIT_EXCEEDED(UNPROCESSABLE_CONTENT, "Transfer limit exceeded"),
     IDEMPOTENCY_KEY_REUSED(UNPROCESSABLE_CONTENT, "Idempotency key reused"),
-    ACCOUNT_SETUP_PENDING(HttpStatus.FORBIDDEN, "Account setup pending");
+    ACCOUNT_SETUP_PENDING(HttpStatus.FORBIDDEN, "Account setup pending"),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "Too many requests");
 
     private final HttpStatus status;
     private final String title;

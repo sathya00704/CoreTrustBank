@@ -18,6 +18,8 @@ import com.coretrust.bank.user.entity.Role;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.entity.UserStatus;
 import com.coretrust.bank.user.repository.UserRepository;
+import com.coretrust.bank.common.util.ClientIp;
+import com.coretrust.bank.ratelimit.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -52,6 +54,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
     private final AuditService auditService;
+    private final RateLimiter rateLimiter;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -82,15 +85,22 @@ public class AuthService {
     @Transactional
     public AuthResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
+
+        rateLimiter.consume("login-ip", ClientIp.current());
+        // After 5 failed attempts, the email is blocked for the rest of the window, even with the right password
+        rateLimiter.requireNotBlocked("login-failures", email);
+
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
                     UsernamePasswordAuthenticationToken.unauthenticated(email, request.password()));
         } catch (AuthenticationException ex) {
+            rateLimiter.record("login-failures", email);
             auditService.recordIndependently(null, email, AuditAction.LOGIN_FAILED, AuditEntityType.USER, null,
                     "Failed login (%s)".formatted(ex.getClass().getSimpleName()));
             throw ex;
         }
+        rateLimiter.reset("login-failures", email);
 
         SecurityUser principal = (SecurityUser) authentication.getPrincipal();
         User user = userRepository.findById(principal.id())

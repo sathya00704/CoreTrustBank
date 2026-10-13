@@ -13,6 +13,7 @@ import com.coretrust.bank.otp.dto.OtpChallengeResponse;
 import com.coretrust.bank.otp.entity.Otp;
 import com.coretrust.bank.otp.entity.OtpPurpose;
 import com.coretrust.bank.otp.repository.OtpRepository;
+import com.coretrust.bank.ratelimit.RateLimiter;
 import com.coretrust.bank.user.entity.User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,10 +36,11 @@ public class OtpService {
     private final AuditService auditService;
     private final OtpProperties properties;
     private final TransactionTemplate requiresNewTransaction;
+    private final RateLimiter rateLimiter;
 
     public OtpService(OtpRepository otpRepository, PasswordEncoder passwordEncoder, EmailService emailService,
                       AuditService auditService, OtpProperties properties,
-                      PlatformTransactionManager transactionManager) {
+                      PlatformTransactionManager transactionManager, RateLimiter rateLimiter) {
         this.otpRepository = otpRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
@@ -46,6 +48,7 @@ public class OtpService {
         this.properties = properties;
         this.requiresNewTransaction = new TransactionTemplate(transactionManager);
         this.requiresNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.rateLimiter = rateLimiter;
     }
 
     /** Sends the OTP to the customer's registered email. */
@@ -59,6 +62,7 @@ public class OtpService {
     @Transactional
     public OtpChallengeResponse issue(User customer, OtpPurpose purpose, String operationDetails,
                                       String operationSummary, Long requestedBy, String deliverTo) {
+        rateLimiter.consume("otp-issue", customer.getId());
         otpRepository.invalidateActive(customer.getId(), purpose);
 
         String code = "%06d".formatted(RANDOM.nextInt(1_000_000));
