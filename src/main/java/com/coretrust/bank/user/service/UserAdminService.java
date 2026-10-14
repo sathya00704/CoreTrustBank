@@ -10,6 +10,7 @@ import com.coretrust.bank.common.exception.ErrorCode;
 import com.coretrust.bank.common.exception.ResourceNotFoundException;
 import com.coretrust.bank.common.util.SortValidator;
 import com.coretrust.bank.security.SecurityUser;
+import com.coretrust.bank.security.SecurityUserCacheEvictor;
 import com.coretrust.bank.user.dto.UserAdminResponse;
 import com.coretrust.bank.user.entity.Permission;
 import com.coretrust.bank.user.entity.Role;
@@ -39,6 +40,7 @@ public class UserAdminService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
+    private final SecurityUserCacheEvictor cacheEvictor;
 
     /** Plain SUPPORT sees customers only; MANAGE_USERS (and admins) see everyone. */
     @Transactional(readOnly = true)
@@ -105,6 +107,7 @@ public class UserAdminService {
         auditService.record(AuditAction.PERMISSIONS_CHANGED, AuditEntityType.USER, target.getId(),
                 "Permissions of %s changed from %s to %s by admin %s".formatted(target.getEmail(),
                         before, permissions, admin.email()));
+        cacheEvictor.evictAfterCommit(target.getId());   // collection changes don't fire @PostUpdate
         return UserAdminResponse.from(target);
     }
 

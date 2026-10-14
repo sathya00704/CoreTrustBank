@@ -1,6 +1,7 @@
 package com.coretrust.bank.user.entity;
 
 import com.coretrust.bank.common.entity.BaseEntity;
+import com.coretrust.bank.security.SecurityUserCacheEvictor;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -22,6 +23,7 @@ import java.time.Instant;
 @Getter
 @Setter
 @NoArgsConstructor
+@EntityListeners(SecurityUserCacheEvictor.class)
 public class User extends BaseEntity {
 
     @Column(nullable = false, length = 100)

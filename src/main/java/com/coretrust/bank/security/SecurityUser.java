@@ -82,4 +82,9 @@ public record SecurityUser(Long id, String email, String passwordHash, Role role
     public boolean isEnabled() {
         return status == UserStatus.ACTIVE;
     }
+
+    /** For caching: the password hash never leaves the database. */
+    public SecurityUser withoutPassword() {
+        return new SecurityUser(id, email, null, role, status, activeSessionId, permissions);
+    }
 }

@@ -1,6 +1,8 @@
 package com.coretrust.bank.security;
 
 import com.coretrust.bank.user.repository.UserRepository;
+import com.coretrust.bank.config.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -23,11 +25,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
-    /** Used by the JWT filter on every authenticated request. */
-    //called by the JWT filter on each request to fetch the current user by the id in the token.
+    /** Called by the JWT filter on every request: cached, without the password hash. */
+    @Cacheable(cacheNames = CacheConfig.SECURITY_USERS, key = "#id")
     public SecurityUser loadUserById(Long id) {
         return userRepository.findById(id)
                 .map(SecurityUser::from)
+                .map(SecurityUser::withoutPassword)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 }
