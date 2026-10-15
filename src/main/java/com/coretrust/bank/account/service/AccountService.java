@@ -39,6 +39,10 @@ import com.coretrust.bank.account.event.AccountClosedEvent;
 import com.coretrust.bank.common.util.MaskingUtils;
 import com.coretrust.bank.transaction.entity.ReversalRequestStatus;
 import com.coretrust.bank.transaction.repository.ReversalRequestRepository;
+import com.coretrust.bank.messaging.EventType;
+import com.coretrust.bank.messaging.OutboxService;
+import com.coretrust.bank.messaging.payload.AccountCreatedPayload;
+import com.coretrust.bank.messaging.payload.AccountFrozenPayload;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -81,6 +85,8 @@ public class AccountService {
 
     private static final String CLOSE_ACCOUNT_OPERATION = "CLOSE_ACCOUNT|customer=%d|account=%s";
 
+    private final OutboxService outboxService;
+
     @Transactional
     public AccountResponse createAccount(SecurityUser principal, CreateAccountRequest request) {
         Account saved = openAccount(principal.id(), request.accountType());
@@ -116,6 +122,8 @@ public class AccountService {
         // Customers: own accounts only (404 otherwise). Admins: any account.
         Account account = findAccessibleAccount(principal, accountId);
         account.freeze(principal.role());
+        outboxService.record(EventType.ACCOUNT_FROZEN, account.getId(), new AccountFrozenPayload(
+                account.getId(), account.getAccountNumber(), account.getUser().getId(), principal.role().name()));
 
         String frozenBy = switch (principal.role()) {
             case CUSTOMER -> "customer (self-service)";
@@ -265,7 +273,10 @@ public class AccountService {
         account.setUser(userRepository.getReferenceById(ownerId));
         account.setAccountNumber(generateUniqueAccountNumber());
         account.setAccountType(accountType);
-        return accountRepository.save(account);
+        Account saved = accountRepository.save(account);
+        outboxService.record(EventType.ACCOUNT_CREATED, saved.getId(), new AccountCreatedPayload(
+                saved.getId(), saved.getAccountNumber(), ownerId, saved.getAccountType().name()));
+        return saved;
     }
 
     private void ensureBelowAccountLimit(Long ownerId) {

@@ -27,6 +27,12 @@ import com.coretrust.bank.transfer.dto.AssistedTransferOtpRequest;
 import com.coretrust.bank.transfer.dto.AssistedTransferRequest;
 import com.coretrust.bank.user.entity.User;
 import com.coretrust.bank.user.service.UserService;
+import com.coretrust.bank.messaging.EventType;
+import com.coretrust.bank.messaging.OutboxService;
+import com.coretrust.bank.messaging.payload.TransferFailedPayload;
+
+import java.util.EnumSet;
+import java.util.Set;
 
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +60,13 @@ public class TransferService {
     private static final String ASSISTED_TRANSFER_OPERATION =
             "ASSISTED_TRANSFER|customer=%d|from=%s|to=%s|amount=%s";
 
+    private final OutboxService outboxService;
+
+    /** Business reasons a transfer can fail. Bad input, OTP and idempotency errors aren't "failed transfers". */
+    private static final Set<ErrorCode> TRANSFER_FAILURES = EnumSet.of(
+            ErrorCode.INSUFFICIENT_FUNDS, ErrorCode.INVALID_ACCOUNT_STATE,
+            ErrorCode.TRANSFER_LIMIT_EXCEEDED, ErrorCode.INVALID_TRANSFER);
+
     /** Not @Transactional: IdempotencyService opens one transaction per attempt. */
     public IdempotentResult<TransferResponse> transfer(SecurityUser principal, String idempotencyKey,
                                                        TransferRequest request) {
@@ -61,9 +74,15 @@ public class TransferService {
                 request.fromAccountId(), request.toAccountNumber().trim(),
                 request.amount().stripTrailingZeros().toPlainString(), normalize(request.description()));
 
-        return idempotencyService.execute(principal.id(), idempotencyKey, "TRANSFER", fingerprint,
-                () -> executeTransfer(principal, request),
-                this::toResponse);
+        try {
+            return idempotencyService.execute(principal.id(), idempotencyKey, "TRANSFER", fingerprint,
+                    () -> executeTransfer(principal, request),
+                    this::toResponse);
+        } catch (BusinessException ex) {
+            recordFailure(principal.id(), String.valueOf(request.fromAccountId()), request.toAccountNumber(),
+                    request.amount(), ex);
+            throw ex;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -132,23 +151,28 @@ public class TransferService {
                 request.toAccountNumber().trim(), request.amount().stripTrailingZeros().toPlainString(),
                 normalize(request.description()), request.otpId());
 
-        return idempotencyService.execute(staff.id(), idempotencyKey, "ASSISTED_TRANSFER", fingerprint, () -> {
-            User customer = userService.findActiveCustomerByEmail(request.customerEmail());
-            Account from = findCustomerAccount(customer, request.fromAccountNumber());
-            Account to = resolveRecipient(customer.getId(), request.toAccountNumber());
-            otpService.verify(request.otpId(), customer.getId(), OtpPurpose.ASSISTED_TRANSFER,
-                    assistedOperation(customer.getId(), from.getAccountNumber(), to.getAccountNumber(), request.amount()),
-                    request.otpCode());
+        try {
+            return idempotencyService.execute(staff.id(), idempotencyKey, "ASSISTED_TRANSFER", fingerprint, () -> {
+                User customer = userService.findActiveCustomerByEmail(request.customerEmail());
+                Account from = findCustomerAccount(customer, request.fromAccountNumber());
+                Account to = resolveRecipient(customer.getId(), request.toAccountNumber());
+                otpService.verify(request.otpId(), customer.getId(), OtpPurpose.ASSISTED_TRANSFER,
+                        assistedOperation(customer.getId(), from.getAccountNumber(), to.getAccountNumber(), request.amount()),
+                        request.otpCode());
 
-            Transaction txn = ledgerService.transfer(from, to, request.amount(),
-                    trimToNull(request.description()), staff.id());
-            auditService.record(AuditAction.MONEY_TRANSFERRED, AuditEntityType.TRANSACTION, txn.getId(),
-                    "%s: INR %s from %s to %s by %s %s for customer %s (OTP verified)".formatted(
-                            txn.getTransactionReference(), txn.getAmount().toPlainString(),
-                            from.getAccountNumber(), to.getAccountNumber(),
-                            staff.role(), staff.email(), customer.getEmail()));
-            return txn.getId();
-        }, this::toResponse);
+                Transaction txn = ledgerService.transfer(from, to, request.amount(),
+                        trimToNull(request.description()), staff.id());
+                auditService.record(AuditAction.MONEY_TRANSFERRED, AuditEntityType.TRANSACTION, txn.getId(),
+                        "%s: INR %s from %s to %s by %s %s for customer %s (OTP verified)".formatted(
+                                txn.getTransactionReference(), txn.getAmount().toPlainString(),
+                                from.getAccountNumber(), to.getAccountNumber(),
+                                staff.role(), staff.email(), customer.getEmail()));
+                return txn.getId();
+            }, this::toResponse);
+        } catch (BusinessException ex) {
+            recordFailure(staff.id(), request.fromAccountNumber(), request.toAccountNumber(), request.amount(), ex);
+            throw ex;
+        }
     }
 
     /** Recipient must be one of the owner's own accounts, or an active CoreTrust beneficiary of theirs. */
@@ -174,5 +198,14 @@ public class TransferService {
 
     private static String assistedOperation(Long customerId, String from, String to, BigDecimal amount) {
         return ASSISTED_TRANSFER_OPERATION.formatted(customerId, from, to, amount.stripTrailingZeros().toPlainString());
+    }
+
+    private void recordFailure(Long initiatedBy, String fromAccount, String toAccountNumber,
+                               BigDecimal amount, BusinessException ex) {
+        if (TRANSFER_FAILURES.contains(ex.getErrorCode())) {
+            outboxService.recordIndependently(EventType.TRANSFER_FAILED, initiatedBy, new TransferFailedPayload(
+                    initiatedBy, fromAccount, toAccountNumber.trim(), amount,
+                    ex.getErrorCode().name(), ex.getMessage()));
+        }
     }
 }

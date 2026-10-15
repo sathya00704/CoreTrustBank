@@ -4,6 +4,7 @@ import com.coretrust.bank.account.entity.Account;
 import com.coretrust.bank.common.exception.BusinessException;
 import com.coretrust.bank.common.exception.ErrorCode;
 import com.coretrust.bank.common.util.MaskingUtils;
+import com.coretrust.bank.messaging.OutboxService;
 import com.coretrust.bank.transaction.entity.Transaction;
 import com.coretrust.bank.transaction.entity.TransactionStatus;
 import com.coretrust.bank.transaction.entity.TransactionType;
@@ -11,6 +12,9 @@ import com.coretrust.bank.transaction.event.AccountAlertEvent;
 import com.coretrust.bank.transaction.event.AlertType;
 import com.coretrust.bank.transaction.repository.TransactionRepository;
 import com.coretrust.bank.user.entity.User;
+import com.coretrust.bank.messaging.EventType;
+import com.coretrust.bank.messaging.OutboxService;
+import com.coretrust.bank.messaging.payload.TransferCompletedPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,6 +41,8 @@ public class LedgerService {
     @Value("${app.transfers.max-amount}")
     private BigDecimal maxTransferAmount;
 
+    private final OutboxService outboxService;
+
     /** MANDATORY: must run inside the caller's transaction, so balances and records commit together. */
     @Transactional(propagation = Propagation.MANDATORY)
     public Transaction transfer(Account from, Account to, BigDecimal amount, String description, Long initiatedBy) {
@@ -61,6 +67,9 @@ public class LedgerService {
         txn.setFromBalanceAfter(from.getBalance());
         txn.setToBalanceAfter(to.getBalance());
         Transaction saved = transactionRepository.save(txn);
+        outboxService.record(EventType.TRANSFER_COMPLETED, saved.getId(), new TransferCompletedPayload(
+                saved.getId(), saved.getTransactionReference(), from.getAccountNumber(), to.getAccountNumber(),
+                saved.getAmount(), saved.getCurrency(), initiatedBy));
 
         User sender = from.getUser();
         User recipient = to.getUser();
