@@ -98,4 +98,16 @@ public class RateLimiter {
         String normalized = String.valueOf(subject).trim().toLowerCase(Locale.ROOT);
         return "rl:" + policyName + ":" + HashUtils.sha256Hex(normalized);
     }
+
+    /** Counts one event and returns the new count, or -1 if Redis is unavailable. */
+    public long recordAndCount(String policyName, Object subject) {
+        RateLimitProperties.Policy policy = properties.policy(policyName);
+        try {
+            Long count = increment(key(policyName, subject), policy);
+            return count == null ? -1 : count;
+        } catch (DataAccessException ex) {
+            log.warn("Rate limiter unavailable, event not counted (policy {}): {}", policyName, ex.getMessage());
+            return -1;
+        }
+    }
 }

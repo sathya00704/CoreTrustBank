@@ -20,6 +20,7 @@ public class TransactionFlagService {
 
     private final TransactionRepository transactionRepository;
     private final AuditService auditService;
+    public static final String SYSTEM_ACTOR = "system@coretrust";
 
     @Transactional
     public TransactionFlagResponse flag(SecurityUser actor, Long transactionId, String reason) {
@@ -47,5 +48,17 @@ public class TransactionFlagService {
     private Transaction find(Long transactionId) {
         return transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Transaction", transactionId));
+    }
+
+    /** Called by the risk monitor. No user: flaggedById stays null, so only admins can remove it. */
+    @Transactional
+    public void flagBySystem(Long transactionId, String reason) {
+        Transaction txn = find(transactionId);
+        if (txn.isFlagged()) {
+            return;   // already under review: nothing to add
+        }
+        txn.flag(null, SYSTEM_ACTOR, reason);
+        auditService.record(null, SYSTEM_ACTOR, AuditAction.TRANSACTION_FLAGGED, AuditEntityType.TRANSACTION,
+                transactionId, "%s auto-flagged: %s".formatted(txn.getTransactionReference(), reason));
     }
 }

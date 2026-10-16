@@ -183,6 +183,6 @@ public class LedgerService {
                        BigDecimal balanceAfter, String details) {
         eventPublisher.publishEvent(new AccountAlertEvent(owner.getName(), owner.getEmail(),
                 account.getAccountNumber(), type, txn.getAmount(), txn.getCurrency(), balanceAfter,
-                details, txn.getTransactionReference()));
+                details, txn.getTransactionReference(), txn.getType()));
     }
 }
