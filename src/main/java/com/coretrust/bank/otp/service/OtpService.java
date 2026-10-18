@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Instant;
 
 @Service
@@ -37,18 +38,20 @@ public class OtpService {
     private final OtpProperties properties;
     private final TransactionTemplate requiresNewTransaction;
     private final RateLimiter rateLimiter;
+    private final Clock clock;
 
     public OtpService(OtpRepository otpRepository, PasswordEncoder passwordEncoder, EmailService emailService,
                       AuditService auditService, OtpProperties properties,
-                      PlatformTransactionManager transactionManager, RateLimiter rateLimiter) {
+                      PlatformTransactionManager transactionManager, RateLimiter rateLimiter, Clock clock) {
         this.otpRepository = otpRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.auditService = auditService;
         this.properties = properties;
+        this.rateLimiter = rateLimiter;
+        this.clock = clock;
         this.requiresNewTransaction = new TransactionTemplate(transactionManager);
         this.requiresNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        this.rateLimiter = rateLimiter;
     }
 
     /** Sends the OTP to the customer's registered email. */
@@ -72,7 +75,7 @@ public class OtpService {
         otp.setPurpose(purpose);
         otp.setCodeHash(passwordEncoder.encode(code));
         otp.setOperationHash(HashUtils.sha256Hex(operationDetails));
-        otp.setExpiresAt(Instant.now().plus(properties.ttl()));
+        otp.setExpiresAt(Instant.now(clock).plus(properties.ttl()));      // in issue
         otp.setMaxAttempts(properties.maxAttempts());
         otp.setRequestedBy(requestedBy);
         otpRepository.save(otp);
@@ -109,7 +112,7 @@ public class OtpService {
         if (otp.isConsumed()) {
             throw new BusinessException(ErrorCode.OTP_INVALID, "OTP has already been used or replaced.");
         }
-        if (otp.isExpired(Instant.now())) {
+        if (otp.isExpired(Instant.now(clock))) {                           // in verify
             throw new BusinessException(ErrorCode.OTP_EXPIRED, "OTP has expired. Please request a new one.");
         }
         if (!otp.hasAttemptsLeft()) {

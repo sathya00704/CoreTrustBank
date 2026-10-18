@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
@@ -55,6 +56,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final AuditService auditService;
     private final RateLimiter rateLimiter;
+    private final Clock clock;
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
@@ -105,7 +107,7 @@ public class AuthService {
         SecurityUser principal = (SecurityUser) authentication.getPrincipal();
         User user = userRepository.findById(principal.id())
                 .orElseThrow(() -> new ResourceNotFoundException("User", principal.id()));
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
 
         // Checked only AFTER the password is verified, so strangers can't probe who is online
         if (user.hasActiveSession(now)) {
@@ -158,7 +160,7 @@ public class AuthService {
                     "Revoked refresh token reused; session ended and %d tokens revoked".formatted(revoked));
             throw new BusinessException(ErrorCode.INVALID_TOKEN, "Refresh token has been revoked.");
         }
-        if (!stored.getExpiresAt().isAfter(Instant.now())) {
+        if (!stored.getExpiresAt().isAfter(Instant.now(clock))) {
             throw new BusinessException(ErrorCode.SESSION_EXPIRED, "Session has expired. Please log in again.");
         }
         if (stored.isExtended()) {
@@ -221,7 +223,7 @@ public class AuthService {
         refreshToken.setExtended(extended);
         refreshTokenRepository.save(refreshToken);
 
-        long expiresIn = Duration.between(Instant.now(), tokenExpiresAt).toSeconds();
+        long expiresIn = Duration.between(Instant.now(clock), tokenExpiresAt).toSeconds();
         boolean extendable = !extended && tokenExpiresAt.isBefore(sessionExpiresAt);
 
         return new AuthResponse(accessToken, rawRefreshToken, "Bearer",
