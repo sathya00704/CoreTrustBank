@@ -8,8 +8,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "outbox_events",
-        uniqueConstraints = @UniqueConstraint(name = "uk_outbox_events_event_id", columnNames = "event_id"),
-        indexes = @Index(name = "idx_outbox_events_unpublished", columnList = "published_at, id"))
+        uniqueConstraints = @UniqueConstraint(name = "uk_outbox_events_event_id", columnNames = "event_id"))
 @Getter
 @NoArgsConstructor
 public class OutboxEvent {
