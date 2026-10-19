@@ -111,7 +111,7 @@ public class AuthService {
 
         // Checked only AFTER the password is verified, so strangers can't probe who is online
         if (user.hasActiveSession(now)) {
-            if (!request.forceLogin()) {
+            if (!Boolean.TRUE.equals(request.forceLogin())) {
                 throw new BusinessException(ErrorCode.SESSION_ALREADY_ACTIVE,
                         "You are already logged in on another tab or device. "
                                 + "Log in with forceLogin=true to end that session and continue here.");

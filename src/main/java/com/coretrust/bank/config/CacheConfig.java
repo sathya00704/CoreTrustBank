@@ -10,6 +10,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.support.NoOpCacheManager;
 
 import java.time.Duration;
 
@@ -21,12 +24,20 @@ public class CacheConfig implements CachingConfigurer {
     public static final String SECURITY_USERS = "security-users";
 
     @Bean
-    public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
+    @ConditionalOnProperty(name = "app.cache.redis-enabled", havingValue = "true", matchIfMissing = true)
+    public CacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         RedisCacheConfiguration defaults = RedisCacheConfiguration.defaultCacheConfig()
-                .entryTtl(Duration.ofSeconds(60))      // safety net: even a missed eviction heals in a minute
+                .entryTtl(Duration.ofSeconds(60))
                 .disableCachingNullValues()
                 .prefixCacheNameWith("cache:");
         return RedisCacheManager.builder(connectionFactory).cacheDefaults(defaults).build();
+    }
+
+    /** With Redis caching switched off (tests, or running without Redis): every lookup goes to the database. */
+    @Bean
+    @ConditionalOnProperty(name = "app.cache.redis-enabled", havingValue = "false")
+    public CacheManager noOpCacheManager() {
+        return new NoOpCacheManager();
     }
 
     /** Fail open: if Redis misbehaves, log it and behave as if the cache were empty. */
