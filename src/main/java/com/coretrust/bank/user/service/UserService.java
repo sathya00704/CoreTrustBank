@@ -66,7 +66,11 @@ public class UserService {
             if (userRepository.existsByPhone(request.phone())) {
                 throw new BusinessException(ErrorCode.DUPLICATE_RESOURCE, "Phone number is already registered.");
             }
+            String oldMasked = MaskingUtils.maskPhone(user.getPhone());
             user.setPhone(request.phone());
+            // If someone else is using this session, the real owner finds out from the alert
+            eventPublisher.publishEvent(new PhoneUpdatedEvent(user.getName(), user.getEmail(),
+                    oldMasked, MaskingUtils.maskPhone(request.phone()), "you"));
         }
 
         auditService.record(AuditAction.PROFILE_UPDATED, AuditEntityType.USER, userId, "Profile updated");

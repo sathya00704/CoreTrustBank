@@ -104,6 +104,18 @@ class UserAdminServiceTest {
         verify(cacheEvictor).evictAfterCommit(3L);   // collection changes don't fire @PostUpdate
     }
 
+    @Test
+    void thePrimaryAdmin_canNeverBeLocked() {
+        ReflectionTestUtils.setField(userAdminService, "primaryAdminEmail", "admin@coretrust.com");
+        User primaryAdmin = user(1L, Role.ADMIN);
+        primaryAdmin.setEmail("admin@coretrust.com");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(primaryAdmin));
+
+        assertThatThrownBy(() -> userAdminService.lock(actor(9L, Role.ADMIN, Set.of()), 1L, "test", null))
+                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_REQUEST_STATE);
+        assertThat(primaryAdmin.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
     // ---------- helpers ----------
 
     private static SecurityUser actor(Long id, Role role, Set<Permission> permissions) {

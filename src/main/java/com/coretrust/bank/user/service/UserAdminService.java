@@ -21,6 +21,7 @@ import com.coretrust.bank.user.event.UserUnlockedEvent;
 import com.coretrust.bank.user.repository.UserRepository;
 import com.coretrust.bank.user.repository.UserSpecifications;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -41,6 +42,10 @@ public class UserAdminService {
     private final AuditService auditService;
     private final ApplicationEventPublisher eventPublisher;
     private final SecurityUserCacheEvictor cacheEvictor;
+
+    /** The bootstrap admin: always able to log in, so the bank can never lock itself out. */
+    @Value("${app.bootstrap.admin.email}")
+    private String primaryAdminEmail;
 
     /** Plain SUPPORT sees customers only; MANAGE_USERS (and admins) see everyone. */
     @Transactional(readOnly = true)
@@ -64,6 +69,10 @@ public class UserAdminService {
     @Transactional
     public UserAdminResponse lock(SecurityUser actor, Long userId, String reason, String customerMessage) {
         User target = findManageable(actor, userId);
+        if (target.getEmail().equalsIgnoreCase(primaryAdminEmail)) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST_STATE,
+                    "The primary admin account cannot be locked.");
+        }
         target.lock();                                           // also ends the active session
         refreshTokenRepository.revokeAllActiveByUserId(target.getId());
 
