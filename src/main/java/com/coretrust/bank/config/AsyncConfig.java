@@ -1,10 +1,12 @@
 package com.coretrust.bank.config;
 
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import java.util.Map;
 import java.util.concurrent.ThreadPoolExecutor;
 
 @Configuration
@@ -24,6 +26,20 @@ public class AsyncConfig {
         // On shutdown, finish queued emails instead of discarding them
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
+        // Copy the caller's MDC (requestId, userId) into the background thread
+        executor.setTaskDecorator(task -> {
+            Map<String, String> context = MDC.getCopyOfContextMap();
+            return () -> {
+                if (context != null) {
+                    MDC.setContextMap(context);
+                }
+                try {
+                    task.run();
+                } finally {
+                    MDC.clear();
+                }
+            };
+        });
         executor.initialize();
         return executor;
     }

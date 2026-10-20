@@ -29,6 +29,8 @@ import org.springframework.beans.TypeMismatchException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.ServletRequestBindingException;
+import com.coretrust.bank.observability.RequestIdFilter;
+import org.slf4j.MDC;
 
 import java.net.URI;
 import java.time.Instant;
@@ -234,6 +236,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setInstance(URI.create(path));
         pd.setProperty("errorCode", code.name());
         pd.setProperty("timestamp", Instant.now());
+        pd.setProperty("requestId", MDC.get(RequestIdFilter.MDC_KEY));
         return pd;
     }
 

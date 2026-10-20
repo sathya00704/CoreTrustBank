@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
@@ -74,6 +75,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         user, null, user.getAuthorities());
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                MDC.put("userId", String.valueOf(user.id()));
             }
         } catch (ExpiredJwtException ex) {
             reject(request, response, new BusinessException(ErrorCode.TOKEN_EXPIRED, "Access token has expired."));

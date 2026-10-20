@@ -111,6 +111,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST,
                                 "/api/v1/transactions/*/flag",
                                 "/api/v1/transactions/*/unflag").hasAuthority("PERM_FLAG_TRANSACTIONS")
+                        .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
