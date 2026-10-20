@@ -143,7 +143,7 @@ Maven does not need to be installed: the project includes the Maven wrapper (`mv
 **1. Clone the repository**
 
 ```bash
-git clone <your-repository-url> coretrust-bank
+git clone https://github.com/sathya00704/CoreTrustBank.git coretrust-bank
 cd coretrust-bank
 ```
 
